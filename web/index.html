@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>中文会议录音转写工具</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" href="https://fav.farm/🎙️">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎙️ 中文会议录音转写</h1>
+            <p>上传录音文件，自动转写为带时间戳和说话人标签的文字稿。</p>
+        </header>
+
+        <main>
+            <!-- 输入区域 -->
+            <div id="input-area" class="upload-area">
+                <div class="upload-content">
+                    <span class="icon">📁</span>
+                    <p>点击或拖拽上传音频文件</p>
+                    <small>支持 m4a, mp3, wav, flac, ogg, wma, webm, aac</small>
+                </div>
+
+                <div class="form-row">
+                    <input
+                        type="password"
+                        id="app-key-input"
+                        placeholder="访问密钥（可选）"
+                        autocomplete="off"
+                    />
+                </div>
+                <div class="form-row">
+                    <input type="file" id="file-input" accept=".m4a,.mp3,.wav,.flac,.ogg,.wma,.webm,.aac" hidden />
+                    <button id="pick-file-btn" class="btn secondary">选择音频文件</button>
+                    <p id="selected-file-name" class="file-name">未选择文件</p>
+                </div>
+                <div class="form-row">
+                    <button id="start-btn" class="btn primary">开始转写</button>
+                </div>
+            </div>
+
+            <!-- 进度显示 -->
+            <div id="progress-area" class="hidden">
+                <div class="status-steps">
+                    <div class="step" id="step-upload">1. 上传文件</div>
+                    <div class="step" id="step-transcribe">2. AI 转写中 (<span id="timer">0s</span>)</div>
+                    <div class="step" id="step-process">3. 后处理</div>
+                </div>
+                <div class="loader"></div>
+                <p id="status-text">准备就绪...</p>
+                <div class="runtime-box">
+                    <div id="upload-status-line">上传状态：待开始</div>
+                    <div class="meter">
+                        <div id="upload-progress-fill" class="meter-fill"></div>
+                    </div>
+                    <div id="transcribe-status-line">转写状态：待开始</div>
+                    <div class="meter">
+                        <div id="transcribe-progress-fill" class="meter-fill"></div>
+                    </div>
+                    <div id="task-id-line" class="runtime-muted"></div>
+                    <div id="transcribe-log-line" class="runtime-muted"></div>
+                </div>
+            </div>
+
+            <!-- 结果区域 -->
+            <div id="result-area" class="hidden">
+                <div class="actions">
+                    <button id="download-md" class="btn primary">📥 下载 Markdown</button>
+                    <button id="download-json" class="btn secondary">📥 下载 JSON</button>
+                </div>
+                <div class="preview-box">
+                    <h3>转写预览</h3>
+                    <div id="transcript-preview"></div>
+                </div>
+            </div>
+
+            <!-- 错误提示 -->
+            <div id="error-message" class="error-box hidden"></div>
+        </main>
+
+        <footer>
+            <p>Powered by WhisperX & Replicate</p>
+        </footer>
+    </div>
+    <script src="main.js"></script>
+</body>
+</html>

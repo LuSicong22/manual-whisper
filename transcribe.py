@@ -35,13 +35,29 @@ MODEL_SIZE = os.environ.get("WHISPER_MODEL", "large-v3")
 # Hugging Face Token (用于说话人分离)
 HF_TOKEN = os.environ.get("HF_TOKEN")
 
-# 引导简体中文输出和标点
-INITIAL_PROMPT = "以下是一段中文会议录音的转写。请使用简体中文。"
+# 引导术语识别，避免提示词原文泄漏到结果
+DOMAIN_TERMS = ["微信", "支付宝", "二维码", "收款码", "小程序", "公众号", "NFC", "Node ID", "UID", "UIA", "ADNA", "APP", "H5"]
+INITIAL_PROMPT = f"中文会议讨论记录，保持原意与术语准确。术语参考：{'、'.join(DOMAIN_TERMS)}。"
 
 # VAD 参数（减少幻觉 + 加速）
 VAD_OPTIONS = {
     "vad_onset": 0.5,
     "vad_offset": 0.363,
+}
+
+PROMPT_LEAK_PATTERNS = [
+    r"请使用简体中文[。.!！?？]*",
+    r"请用简体中文[。.!！?？]*",
+]
+
+TERM_REPLACEMENTS = {
+    "搜码二维码": "收款二维码",
+    "收码二维码": "收款二维码",
+    "文艺标识": "唯一标识",
+    "AAP": "APP",
+    "AP里面": "APP里面",
+    "AP里": "APP里",
+    "不信支付法": "支付宝支付法",
 }
 
 
@@ -60,6 +76,22 @@ def remove_hallucination_loops(text, max_repeat=3):
     # 匹配连续重复 max_repeat 次以上的短语（2-20 字符）
     pattern = r'(.{2,20}?)\1{' + str(max_repeat) + r',}'
     cleaned = re.sub(pattern, r'\1', text)
+    return cleaned
+
+
+def clean_segment_text(text):
+    cleaned = text or ""
+    cleaned = cleaned.strip()
+    cleaned = remove_hallucination_loops(cleaned)
+
+    for pattern in PROMPT_LEAK_PATTERNS:
+        cleaned = re.sub(pattern, "", cleaned)
+
+    for src, dst in TERM_REPLACEMENTS.items():
+        cleaned = cleaned.replace(src, dst)
+
+    cleaned = re.sub(r'([，。！？,.!?])\1+', r'\1', cleaned)
+    cleaned = re.sub(r'^[，。！？,.!?、\s]+|[，。！？,.!?、\s]+$', "", cleaned).strip()
     return cleaned
 
 
@@ -121,17 +153,32 @@ def transcribe_audio(audio_file, hf_token=None):
     del model
     gc.collect()
 
-    # 4. 后处理：移除幻觉重复
-    print("🧹 清理幻觉重复...")
-    hallucination_count = 0
+    # 4. 后处理：移除幻觉重复 + 提示词泄漏 + 常见术语错词
+    print("🧹 清理转写文本...")
+    cleaned_segments = []
+    cleaned_count = 0
+    dropped_prompt_count = 0
+
     for segment in result.get("segments", []):
         original = segment.get("text", "")
-        cleaned = remove_hallucination_loops(original)
+        cleaned = clean_segment_text(original)
+
+        if not cleaned:
+            dropped_prompt_count += 1
+            continue
+
         if cleaned != original:
-            segment["text"] = cleaned
-            hallucination_count += 1
-    if hallucination_count > 0:
-        print(f"   修复了 {hallucination_count} 处幻觉重复")
+            cleaned_count += 1
+
+        segment["text"] = cleaned
+        cleaned_segments.append(segment)
+
+    result["segments"] = cleaned_segments
+
+    if cleaned_count > 0:
+        print(f"   修复了 {cleaned_count} 处文本问题")
+    if dropped_prompt_count > 0:
+        print(f"   删除了 {dropped_prompt_count} 条提示词污染片段")
 
     return result, audio_duration
 

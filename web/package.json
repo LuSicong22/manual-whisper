@@ -1,0 +1,11 @@
+{
+    "name": "manual-whisper-web",
+    "version": "1.0.0",
+    "type": "module",
+    "scripts": {
+        "start": "vercel dev"
+    },
+    "dependencies": {
+        "replicate": "^1.4.0"
+    }
+}

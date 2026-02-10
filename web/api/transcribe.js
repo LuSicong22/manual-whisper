@@ -176,6 +176,17 @@ export default async function handler(request, response) {
                     }
                     md += `\n`;
                 }
+                if (output?.second_pass?.enabled) {
+                    const sp = output.second_pass;
+                    md += `## 二次修复\n\n`;
+                    md += `- 状态：${sp.status || "unknown"}\n`;
+                    if (sp.prediction_id) md += `- 任务 ID：${sp.prediction_id}\n`;
+                    if (Array.isArray(sp.ranges) && sp.ranges.length > 0) {
+                        md += `- 回补窗口数：${sp.ranges.length}\n`;
+                    }
+                    if (sp.message) md += `- 说明：${sp.message}\n`;
+                    md += `\n`;
+                }
 
                 if (output.segments) {
                     let currentSpeaker = null;
@@ -643,6 +654,383 @@ function round4(v) {
     return Math.round(v * 10000) / 10000;
 }
 
+async function maybeResolveSecondPass({ clientIp, primaryPrediction, primaryOutput, primaryCleanup, progress }) {
+    const primaryId = primaryPrediction.id;
+    const existingState = globalState.secondPassByPrimary.get(primaryId);
+    if (existingState?.phase === "finalized" && existingState.finalOutput) {
+        if (existingState.secondPassProgress) {
+            progress.secondPass = existingState.secondPassProgress;
+        }
+        return { output: existingState.finalOutput };
+    }
+
+    const baseOutput = {
+        ...primaryOutput,
+        segments: primaryCleanup.segments,
+        cleanup_stats: primaryCleanup.stats,
+        quality_report: primaryCleanup.qualityReport,
+    };
+
+    if (!ENABLE_SECOND_PASS) {
+        return finalizeSecondPass(primaryId, baseOutput, {
+            enabled: false,
+            status: "skipped",
+            reason: "disabled",
+            ranges: [],
+        });
+    }
+
+    const ranges = selectSecondPassRanges(primaryCleanup);
+    if (ranges.length === 0) {
+        return finalizeSecondPass(primaryId, {
+            ...baseOutput,
+            second_pass: {
+                enabled: true,
+                status: "skipped",
+                reason: "no_suspicious_ranges",
+                ranges: [],
+            },
+        }, {
+            enabled: true,
+            status: "skipped",
+            reason: "no_suspicious_ranges",
+            ranges: [],
+        });
+    }
+
+    if (!existingState) {
+        const audioFileUrl = primaryPrediction?.input?.audio_file;
+        if (typeof audioFileUrl !== "string" || audioFileUrl.length === 0) {
+            return finalizeSecondPass(primaryId, {
+                ...baseOutput,
+                second_pass: {
+                    enabled: true,
+                    status: "failed",
+                    reason: "missing_audio_file",
+                    ranges,
+                },
+            }, {
+                enabled: true,
+                status: "failed",
+                reason: "missing_audio_file",
+                ranges,
+            });
+        }
+
+        try {
+            const version = await resolveModelVersion();
+            const secondPrediction = await replicate.predictions.create({
+                version,
+                input: buildSecondPassInput(audioFileUrl),
+            });
+
+            trackNewJob(clientIp, secondPrediction.id);
+            const state = {
+                phase: "running",
+                secondPredictionId: secondPrediction.id,
+                ranges,
+                createdAt: Date.now(),
+                updatedAt: Date.now(),
+            };
+            globalState.secondPassByPrimary.set(primaryId, state);
+
+            const secondPassProgress = buildSecondPassProgress(secondPrediction, ranges);
+            progress.secondPass = secondPassProgress;
+            progress.percent = Math.max(Number(progress.percent) || 0, 96);
+
+            return {
+                pendingResponse: {
+                    status: "processing",
+                    id: primaryId,
+                    progress,
+                },
+            };
+        } catch (error) {
+            const mapped = mapPredictionStartError(error);
+            console.error("Second pass start error:", error);
+            return finalizeSecondPass(primaryId, {
+                ...baseOutput,
+                second_pass: {
+                    enabled: true,
+                    status: "failed",
+                    reason: "start_failed",
+                    message: mapped.message,
+                    ranges,
+                },
+            }, {
+                enabled: true,
+                status: "failed",
+                reason: "start_failed",
+                message: mapped.message,
+                ranges,
+            });
+        }
+    }
+
+    if (existingState.phase !== "running") {
+        return finalizeSecondPass(primaryId, baseOutput, {
+            enabled: true,
+            status: "failed",
+            reason: "invalid_state",
+            ranges,
+        });
+    }
+
+    try {
+        const secondPrediction = await replicate.predictions.get(existingState.secondPredictionId);
+        releaseIfDone(clientIp, existingState.secondPredictionId, secondPrediction.status);
+
+        if (secondPrediction.status === "starting" || secondPrediction.status === "processing") {
+            existingState.updatedAt = Date.now();
+            globalState.secondPassByPrimary.set(primaryId, existingState);
+
+            const secondPassProgress = buildSecondPassProgress(secondPrediction, existingState.ranges);
+            progress.secondPass = secondPassProgress;
+            const secondPercent = Number(secondPassProgress.percent);
+            const hinted = Number.isFinite(secondPercent) ? Math.min(99, 96 + Math.floor(secondPercent / 20)) : 97;
+            progress.percent = Math.max(Number(progress.percent) || 0, hinted);
+
+            return {
+                pendingResponse: {
+                    status: "processing",
+                    id: primaryId,
+                    progress,
+                },
+            };
+        }
+
+        if (secondPrediction.status === "failed" || secondPrediction.status === "canceled") {
+            const secondPassMeta = {
+                enabled: true,
+                status: secondPrediction.status,
+                prediction_id: secondPrediction.id,
+                reason: secondPrediction.error || "second_pass_failed",
+                ranges: existingState.ranges,
+            };
+            return finalizeSecondPass(primaryId, {
+                ...baseOutput,
+                second_pass: secondPassMeta,
+            }, secondPassMeta);
+        }
+
+        const secondOutput = secondPrediction.output;
+        if (!secondOutput || !Array.isArray(secondOutput.segments)) {
+            const secondPassMeta = {
+                enabled: true,
+                status: "failed",
+                prediction_id: secondPrediction.id,
+                reason: "invalid_second_pass_output",
+                ranges: existingState.ranges,
+            };
+            return finalizeSecondPass(primaryId, {
+                ...baseOutput,
+                second_pass: secondPassMeta,
+            }, secondPassMeta);
+        }
+
+        const secondCleanup = postProcessSegments(secondOutput.segments);
+        const mergeResult = mergeSecondPassSegments({
+            primarySegments: primaryCleanup.segments,
+            secondarySegments: secondCleanup.segments,
+            ranges: existingState.ranges,
+        });
+        const mergedCleanup = postProcessSegments(mergeResult.segments);
+
+        const secondPassMeta = {
+            enabled: true,
+            status: "succeeded",
+            prediction_id: secondPrediction.id,
+            ranges: existingState.ranges,
+            replaced_primary_segments: mergeResult.replacedPrimarySegments,
+            inserted_second_segments: mergeResult.insertedSecondarySegments,
+            merged_segment_count: mergedCleanup.segments.length,
+        };
+
+        const finalOutput = {
+            ...primaryOutput,
+            segments: mergedCleanup.segments,
+            cleanup_stats: mergedCleanup.stats,
+            quality_report: mergedCleanup.qualityReport,
+            second_pass: secondPassMeta,
+        };
+
+        return finalizeSecondPass(primaryId, finalOutput, secondPassMeta);
+    } catch (error) {
+        console.error("Second pass polling error:", error);
+        const secondPassMeta = {
+            enabled: true,
+            status: "failed",
+            reason: "poll_failed",
+            message: truncateText(String(error?.message || "unknown error"), 180),
+            ranges: existingState.ranges,
+        };
+        return finalizeSecondPass(primaryId, {
+            ...baseOutput,
+            second_pass: secondPassMeta,
+        }, secondPassMeta);
+    }
+}
+
+function finalizeSecondPass(primaryId, finalOutput, secondPassProgress) {
+    globalState.secondPassByPrimary.set(primaryId, {
+        phase: "finalized",
+        finalOutput,
+        secondPassProgress,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+    });
+
+    return { output: finalOutput };
+}
+
+function selectSecondPassRanges(primaryCleanup) {
+    const qualityRanges = Array.isArray(primaryCleanup?.qualityReport?.suspicious_ranges)
+        ? primaryCleanup.qualityReport.suspicious_ranges
+        : [];
+    const removedRanges = Array.isArray(primaryCleanup?.removedRanges) ? primaryCleanup.removedRanges : [];
+
+    const mergedFromRemoved = mergeRanges(
+        removedRanges.filter((item) => item.reason === "hallucination" || item.reason === "prompt"),
+        1.2
+    );
+
+    const source = qualityRanges.length > 0 ? qualityRanges : mergedFromRemoved;
+    const normalized = source
+        .map((item, index) => normalizeSecondPassRange(item, index))
+        .filter(Boolean);
+
+    const unique = [];
+    for (const item of normalized) {
+        const duplicate = unique.some((prev) => Math.abs(prev.start - item.start) < 0.2 && Math.abs(prev.end - item.end) < 0.2);
+        if (!duplicate) unique.push(item);
+        if (unique.length >= SECOND_PASS_MAX_RANGES) break;
+    }
+
+    return unique;
+}
+
+function normalizeSecondPassRange(item, index) {
+    const start = toFiniteNumber(item?.start, NaN);
+    const end = toFiniteNumber(item?.end, NaN);
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
+        return null;
+    }
+
+    const duration = end - start;
+    if (duration < SECOND_PASS_MIN_RANGE_SEC) {
+        return null;
+    }
+
+    const paddedStart = Math.max(0, start - SECOND_PASS_RANGE_PAD_SEC);
+    const paddedEnd = Math.max(paddedStart, end + SECOND_PASS_RANGE_PAD_SEC);
+
+    return {
+        index,
+        start,
+        end,
+        duration: round2(duration),
+        pad_start: round2(paddedStart),
+        pad_end: round2(paddedEnd),
+        reason: typeof item?.reason === "string" ? item.reason : "suspicious",
+    };
+}
+
+function buildSecondPassInput(fileUrl) {
+    const diarizationEnabled = SECOND_PASS_DIARIZATION && Boolean(HF_TOKEN);
+    const input = {
+        audio_file: fileUrl,
+        language: "zh",
+        batch_size: SECOND_PASS_BATCH_SIZE,
+        temperature: SECOND_PASS_TEMPERATURE,
+        vad_onset: SECOND_PASS_VAD_ONSET,
+        vad_offset: SECOND_PASS_VAD_OFFSET,
+        align_output: true,
+        diarization: diarizationEnabled,
+    };
+
+    if (SECOND_PASS_USE_INITIAL_PROMPT && INITIAL_PROMPT) {
+        input.initial_prompt = INITIAL_PROMPT;
+    }
+    if (diarizationEnabled && HF_TOKEN) {
+        input.huggingface_access_token = HF_TOKEN;
+    }
+
+    return input;
+}
+
+function buildSecondPassProgress(prediction, ranges) {
+    return {
+        enabled: true,
+        status: prediction.status,
+        prediction_id: prediction.id,
+        percent: extractPercentFromLogs(prediction.logs),
+        logsTail: extractLogsTail(prediction.logs, 2),
+        elapsedSec: computeElapsedSec(prediction.started_at, prediction.completed_at),
+        ranges,
+    };
+}
+
+function mergeSecondPassSegments({ primarySegments, secondarySegments, ranges }) {
+    const windows = (Array.isArray(ranges) ? ranges : [])
+        .map((item) => ({
+            start: toFiniteNumber(item.pad_start, toFiniteNumber(item.start, NaN)),
+            end: toFiniteNumber(item.pad_end, toFiniteNumber(item.end, NaN)),
+        }))
+        .filter((item) => Number.isFinite(item.start) && Number.isFinite(item.end) && item.end > item.start);
+
+    if (windows.length === 0) {
+        return {
+            segments: Array.isArray(primarySegments) ? [...primarySegments] : [],
+            replacedPrimarySegments: 0,
+            insertedSecondarySegments: 0,
+        };
+    }
+
+    const keptPrimary = [];
+    let replacedPrimarySegments = 0;
+    for (const seg of primarySegments || []) {
+        if (segmentOverlapsAnyWindow(seg, windows)) {
+            replacedPrimarySegments += 1;
+            continue;
+        }
+        keptPrimary.push({ ...seg });
+    }
+
+    const inserted = [];
+    const dedup = new Set();
+    for (const seg of secondarySegments || []) {
+        if (!segmentOverlapsAnyWindow(seg, windows)) continue;
+        const key = `${round2(toFiniteNumber(seg?.start, 0))}|${round2(toFiniteNumber(seg?.end, 0))}|${(seg?.text || "").trim()}`;
+        if (dedup.has(key)) continue;
+        dedup.add(key);
+        inserted.push({ ...seg });
+    }
+
+    const merged = [...keptPrimary, ...inserted].sort((a, b) => {
+        const sa = toFiniteNumber(a?.start, 0);
+        const sb = toFiniteNumber(b?.start, 0);
+        if (sa !== sb) return sa - sb;
+        return toFiniteNumber(a?.end, sa) - toFiniteNumber(b?.end, sb);
+    });
+
+    return {
+        segments: merged,
+        replacedPrimarySegments,
+        insertedSecondarySegments: inserted.length,
+    };
+}
+
+function segmentOverlapsAnyWindow(seg, windows) {
+    const start = toFiniteNumber(seg?.start, 0);
+    const end = Math.max(start, toFiniteNumber(seg?.end, start));
+    for (const window of windows) {
+        if (start < window.end && end > window.start) {
+            return true;
+        }
+    }
+    return false;
+}
+
 function mergeAdjacentSegments(segments, maxGapSec) {
     if (!Array.isArray(segments) || segments.length === 0) {
         return { segments: [], mergedCount: 0 };
@@ -1001,6 +1389,13 @@ function pruneState() {
             } else {
                 globalState.activeJobsByIp.set(meta.ip, jobs);
             }
+        }
+    }
+
+    for (const [primaryId, state] of globalState.secondPassByPrimary.entries()) {
+        const updatedAt = Number(state?.updatedAt || state?.createdAt || 0);
+        if (!Number.isFinite(updatedAt) || now - updatedAt > META_TTL_MS) {
+            globalState.secondPassByPrimary.delete(primaryId);
         }
     }
 }

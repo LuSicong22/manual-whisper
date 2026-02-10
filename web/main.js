@@ -302,6 +302,17 @@ function renderPredictionProgress(data) {
             extras.push(`质量告警：${warnings[0]}`);
         }
     }
+    if (progress.secondPass && typeof progress.secondPass === 'object') {
+        const sp = progress.secondPass;
+        const spStatus = statusToChinese(sp.status || '');
+        const spPercent = Number(sp.percent);
+        const hasPercent = Number.isFinite(spPercent);
+        const rangeCount = Array.isArray(sp.ranges) ? sp.ranges.length : 0;
+        const statusText = hasPercent ? `${spStatus} (${Math.max(0, Math.min(100, Math.round(spPercent)))}%)` : spStatus;
+        if (statusText) {
+            extras.push(`二次修复：${statusText}${rangeCount > 0 ? `，窗口 ${rangeCount}` : ''}`);
+        }
+    }
     transcribeLogLine.textContent = extras.join(' ｜ ');
 }
 

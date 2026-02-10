@@ -47,6 +47,17 @@
    # MERGE_ADJACENT_SEGMENTS=true
    # MIN_WARN_REMOVED_SPAN_SEC=10
    # MIN_WARN_COVERAGE_RATIO=0.85
+   # 可选：自动二次回补
+   # ENABLE_SECOND_PASS=true
+   # SECOND_PASS_MAX_RANGES=4
+   # SECOND_PASS_MIN_RANGE_SEC=1.5
+   # SECOND_PASS_RANGE_PAD_SEC=1.2
+   # SECOND_PASS_BATCH_SIZE=16
+   # SECOND_PASS_TEMPERATURE=0
+   # SECOND_PASS_VAD_ONSET=0.60
+   # SECOND_PASS_VAD_OFFSET=0.42
+   # SECOND_PASS_DIARIZATION=false
+   # SECOND_PASS_USE_INITIAL_PROMPT=false
    # 可选：识别参数
    # VAD_ONSET=0.50
    # VAD_OFFSET=0.36
@@ -107,6 +118,7 @@
 - 自动合并过碎分段
 - 支持术语词表和错词替换配置
 - 输出 `quality_report`，标记可疑丢失时间段与覆盖率告警
+- 对可疑丢失窗口自动触发 second-pass 回补并合并结果
 
 ### 可选风控配置
 

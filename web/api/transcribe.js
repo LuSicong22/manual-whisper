@@ -171,24 +171,6 @@ export default async function handler(request, response) {
 
                 // Format to Markdown (ported from Python)
                 let md = `# 会议录音转写\n\n`;
-                if (output?.quality_report?.warnings?.length) {
-                    md += `## 质量告警\n\n`;
-                    for (const warning of output.quality_report.warnings) {
-                        md += `- ${warning}\n`;
-                    }
-                    md += `\n`;
-                }
-                if (output?.second_pass?.enabled) {
-                    const sp = output.second_pass;
-                    md += `## 二次修复\n\n`;
-                    md += `- 状态：${sp.status || "unknown"}\n`;
-                    if (sp.prediction_id) md += `- 任务 ID：${sp.prediction_id}\n`;
-                    if (Array.isArray(sp.ranges) && sp.ranges.length > 0) {
-                        md += `- 回补窗口数：${sp.ranges.length}\n`;
-                    }
-                    if (sp.message) md += `- 说明：${sp.message}\n`;
-                    md += `\n`;
-                }
 
                 if (output.segments) {
                     let currentSpeaker = null;
@@ -328,7 +310,7 @@ function buildTranscribeInput(fileUrl, language) {
         temperature: TEMPERATURE,
         vad_onset: VAD_OPTIONS.vad_onset,
         vad_offset: VAD_OPTIONS.vad_offset,
-        align_output: true,
+        align_output: diarizationEnabled,
         diarization: diarizationEnabled,
     };
 
@@ -962,7 +944,7 @@ function buildSecondPassInput(fileUrl, language) {
         temperature: SECOND_PASS_TEMPERATURE,
         vad_onset: SECOND_PASS_VAD_ONSET,
         vad_offset: SECOND_PASS_VAD_OFFSET,
-        align_output: true,
+        align_output: diarizationEnabled,
         diarization: diarizationEnabled,
     };
 

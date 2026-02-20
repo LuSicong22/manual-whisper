@@ -37,6 +37,15 @@
                     </select>
                 </div>
                 <div class="form-row">
+                    <button id="record-btn" class="btn record">🎤 录音</button>
+                    <p id="record-status" class="record-status"></p>
+                    <div id="volume-meter" class="volume-meter hidden">
+                        <div id="volume-meter-fill" class="volume-meter-fill"></div>
+                    </div>
+                    <audio id="record-playback" class="record-playback hidden" controls></audio>
+                </div>
+                <div class="divider-or"><span>或</span></div>
+                <div class="form-row">
                     <input type="file" id="file-input" accept=".m4a,.mp3,.wav,.flac,.ogg,.wma,.webm,.aac" hidden />
                     <button id="pick-file-btn" class="btn secondary">选择音频文件</button>
                     <p id="selected-file-name" class="file-name">未选择文件</p>
@@ -78,6 +87,7 @@
                 <div class="actions">
                     <button id="new-upload-btn" class="btn outline">🔄 上传新录音</button>
                 </div>
+                <audio id="result-playback" class="result-playback hidden" controls></audio>
                 <div class="preview-box">
                     <h3>转写预览</h3>
                     <div id="transcript-preview"></div>
@@ -91,8 +101,7 @@
         <footer>
             <p>Powered by WhisperX & Replicate</p>
         </footer>
-    </div>
-    <script src="main.js"></script>
+        <script src="main.js"></script>
 </body>
 
 </html>

@@ -266,6 +266,102 @@ p {
   margin-top: 20px;
 }
 
+/* Recording */
+.btn.record {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: white;
+  width: 100%;
+  font-size: 1rem;
+  padding: 12px 20px;
+  position: relative;
+}
+
+.btn.record:hover {
+  background: linear-gradient(135deg, #dc2626, #b91c1c);
+}
+
+.btn.record.recording {
+  background: linear-gradient(135deg, #b91c1c, #991b1b);
+  animation: pulse-record 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-record {
+
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5);
+  }
+
+  50% {
+    box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+  }
+}
+
+.record-status {
+  margin: 6px 0 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  min-height: 1.2em;
+}
+
+.volume-meter {
+  margin-top: 8px;
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.volume-meter-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #10b981, #60a5fa, #f59e0b, #ef4444);
+  border-radius: 999px;
+  transition: width 0.08s ease-out;
+}
+
+.record-playback {
+  margin-top: 10px;
+  width: 100%;
+  height: 36px;
+  border-radius: 8px;
+  filter: invert(1) hue-rotate(180deg) brightness(0.85);
+}
+
+.result-playback {
+  margin: 12px auto;
+  width: 100%;
+  height: 36px;
+  border-radius: 8px;
+  filter: invert(1) hue-rotate(180deg) brightness(0.85);
+}
+
+.divider-or {
+  display: flex;
+  align-items: center;
+  margin: 14px 0 6px;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.divider-or::before,
+.divider-or::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.divider-or span {
+  padding: 0 12px;
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 footer {
   margin-top: 40px;
   font-size: 0.8rem;

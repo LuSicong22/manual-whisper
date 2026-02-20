@@ -20,6 +20,16 @@ const uploadProgressFill = document.getElementById('upload-progress-fill');
 const transcribeProgressFill = document.getElementById('transcribe-progress-fill');
 const taskIdLine = document.getElementById('task-id-line');
 const transcribeLogLine = document.getElementById('transcribe-log-line');
+const recordBtn = document.getElementById('record-btn');
+const recordStatus = document.getElementById('record-status');
+const volumeMeter = document.getElementById('volume-meter');
+const volumeMeterFill = document.getElementById('volume-meter-fill');
+const recordPlayback = document.getElementById('record-playback');
+const resultPlayback = document.getElementById('result-playback');
+
+let lastAudioUrl = null;
+
+let recordPlaybackUrl = null;
 
 let startTime;
 let timerInterval;
@@ -27,6 +37,18 @@ let currentFileBaseName = 'transcript';
 let selectedFile = null;
 let running = false;
 let transcribePercentHint = 0;
+
+// Recording state
+let audioContext = null;
+let scriptProcessor = null;
+let mediaStreamSource = null;
+let recordingStream = null;
+let recordStartTime = null;
+let recordTimerInterval = null;
+let isRecording = false;
+let audioBuffers = [];
+let recordingLength = 0;
+const targetSampleRate = 16000;
 
 const POLL_TIMEOUT_MS = 30 * 60 * 1000;
 const INITIAL_POLL_INTERVAL_MS = 3000;
@@ -83,6 +105,14 @@ function initialize() {
     newUploadBtn.addEventListener('click', () => {
         resetUI();
     });
+
+    recordBtn.addEventListener('click', () => {
+        if (isRecording) {
+            stopRecording();
+        } else {
+            startRecording();
+        }
+    });
 }
 
 function updateSelectedFile(file) {
@@ -94,6 +124,189 @@ function updateSelectedFile(file) {
 
     selectedFileName.textContent = `${file.name} (${formatBytes(file.size)})`;
     currentFileBaseName = extractFileBaseName(file.name);
+
+    // Create a URL for result-page playback
+    if (lastAudioUrl) URL.revokeObjectURL(lastAudioUrl);
+    lastAudioUrl = URL.createObjectURL(file);
+}
+
+async function startRecording() {
+    try {
+        recordingStream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+                channelCount: 1,
+                sampleRate: targetSampleRate
+            }
+        });
+    } catch (err) {
+        console.error('Microphone access denied:', err);
+        showError('无法访问麦克风，请在浏览器中允许麦克风权限。');
+        return;
+    }
+
+    audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: targetSampleRate });
+    mediaStreamSource = audioContext.createMediaStreamSource(recordingStream);
+
+    // Use ScriptProcessorNode (deprecated but widely supported and reliable for raw PCM extraction)
+    scriptProcessor = audioContext.createScriptProcessor(4096, 1, 1);
+
+    audioBuffers = [];
+    recordingLength = 0;
+
+    scriptProcessor.onaudioprocess = (e) => {
+        if (!isRecording) return;
+        const channelData = e.inputBuffer.getChannelData(0);
+        // Copy data to avoid mutation
+        const buffer = new Float32Array(channelData.length);
+        buffer.set(channelData);
+        audioBuffers.push(buffer);
+        recordingLength += buffer.length;
+
+        // Compute RMS volume for the visual meter
+        let sum = 0;
+        for (let i = 0; i < channelData.length; i++) {
+            sum += channelData[i] * channelData[i];
+        }
+        const rms = Math.sqrt(sum / channelData.length);
+        // Map RMS (0..~0.5) to percentage (0..100), with amplification for quiet sources
+        const level = Math.min(100, Math.round(rms * 300));
+        volumeMeterFill.style.width = `${level}%`;
+    };
+
+    mediaStreamSource.connect(scriptProcessor);
+    scriptProcessor.connect(audioContext.destination);
+
+    isRecording = true;
+    recordStartTime = Date.now();
+
+    recordPlayback.classList.add('hidden');
+    recordPlayback.src = '';
+    recordBtn.textContent = '⏹ 停止录音';
+    recordBtn.classList.add('recording');
+    setRecordingControlsDisabled(true);
+    recordStatus.textContent = '🔴 录音中 — 00:00';
+    errorMessage.classList.add('hidden');
+    volumeMeter.classList.remove('hidden');
+    volumeMeterFill.style.width = '0%';
+
+    recordTimerInterval = setInterval(() => {
+        const sec = Math.floor((Date.now() - recordStartTime) / 1000);
+        const mm = String(Math.floor(sec / 60)).padStart(2, '0');
+        const ss = String(sec % 60).padStart(2, '0');
+        recordStatus.textContent = `🔴 录音中 — ${mm}:${ss}`;
+    }, 500);
+}
+
+async function stopRecording() {
+    isRecording = false;
+
+    if (scriptProcessor) {
+        scriptProcessor.disconnect();
+        mediaStreamSource.disconnect();
+    }
+
+    // Construct the WAV file
+    const audioData = mergeAudioBuffers(audioBuffers, recordingLength);
+    const wavBlob = encodeWAV(audioData, audioContext.sampleRate);
+
+    const now = new Date();
+    const ts = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}`;
+    const fileName = `录音_${ts}.wav`;
+    const file = new File([wavBlob], fileName, { type: 'audio/wav' });
+
+    updateSelectedFile(file);
+    recordStatus.textContent = `✅ 录音完成 — ${formatBytes(file.size)}`;
+
+    // Enable playback
+    if (recordPlaybackUrl) URL.revokeObjectURL(recordPlaybackUrl);
+    recordPlaybackUrl = URL.createObjectURL(wavBlob);
+    recordPlayback.src = recordPlaybackUrl;
+    recordPlayback.classList.remove('hidden');
+
+    cleanupRecording();
+}
+
+function cleanupRecording() {
+    isRecording = false;
+    clearInterval(recordTimerInterval);
+    recordTimerInterval = null;
+
+    recordBtn.textContent = '🎤 录音';
+    recordBtn.classList.remove('recording');
+    volumeMeter.classList.add('hidden');
+    volumeMeterFill.style.width = '0%';
+    // Keep playback visible — only hide on new recording or resetUI
+    setRecordingControlsDisabled(false);
+
+    if (recordingStream) {
+        recordingStream.getTracks().forEach((t) => t.stop());
+        recordingStream = null;
+    }
+    if (audioContext && audioContext.state !== 'closed') {
+        audioContext.close();
+    }
+
+    audioBuffers = [];
+    recordingLength = 0;
+    audioContext = null;
+    scriptProcessor = null;
+    mediaStreamSource = null;
+}
+
+function mergeAudioBuffers(channelBuffer, recordingLength) {
+    const result = new Float32Array(recordingLength);
+    let offset = 0;
+    for (let i = 0; i < channelBuffer.length; i++) {
+        const buffer = channelBuffer[i];
+        result.set(buffer, offset);
+        offset += buffer.length;
+    }
+    return result;
+}
+
+function encodeWAV(samples, sampleRate) {
+    const buffer = new ArrayBuffer(44 + samples.length * 2);
+    const view = new DataView(buffer);
+
+    // RIFF chunk descriptor
+    writeString(view, 0, 'RIFF');
+    view.setUint32(4, 36 + samples.length * 2, true);
+    writeString(view, 8, 'WAVE');
+
+    // FMT sub-chunk
+    writeString(view, 12, 'fmt ');
+    view.setUint32(16, 16, true); // Subchunk1Size (16 for PCM)
+    view.setUint16(20, 1, true); // AudioFormat (1 for PCM)
+    view.setUint16(22, 1, true); // NumChannels (1 channel)
+    view.setUint32(24, sampleRate, true); // SampleRate
+    view.setUint32(28, sampleRate * 2, true); // ByteRate (SampleRate * NumChannels * BitsPerSample/8)
+    view.setUint16(32, 2, true); // BlockAlign (NumChannels * BitsPerSample/8)
+    view.setUint16(34, 16, true); // BitsPerSample
+
+    // Data sub-chunk
+    writeString(view, 36, 'data');
+    view.setUint32(40, samples.length * 2, true);
+
+    // Write PCM samples
+    let offset = 44;
+    for (let i = 0; i < samples.length; i++, offset += 2) {
+        let s = Math.max(-1, Math.min(1, samples[i]));
+        view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+    }
+
+    return new Blob([view], { type: 'audio/wav' });
+}
+
+function writeString(view, offset, string) {
+    for (let i = 0; i < string.length; i++) {
+        view.setUint8(offset + i, string.charCodeAt(i));
+    }
+}
+
+function setRecordingControlsDisabled(disabled) {
+    startBtn.disabled = disabled;
+    pickFileBtn.disabled = disabled;
+    fileInput.disabled = disabled;
 }
 
 async function startTranscription(file, appKey, language) {
@@ -387,6 +600,15 @@ function finishProcess(output) {
 
     progressArea.classList.add('hidden');
     resultArea.classList.remove('hidden');
+
+    // Show audio playback in result area if we have a recording/file URL
+    if (recordPlaybackUrl || lastAudioUrl) {
+        resultPlayback.src = recordPlaybackUrl || lastAudioUrl;
+        resultPlayback.classList.remove('hidden');
+    } else {
+        resultPlayback.classList.add('hidden');
+    }
+
     running = false;
     setControlsDisabled(false);
 }
@@ -463,6 +685,19 @@ function resetUI() {
     selectedFileName.textContent = '未选择文件';
     currentFileBaseName = 'transcript';
     transcriptPreview.textContent = '';
+    recordStatus.textContent = '';
+    recordPlayback.classList.add('hidden');
+    recordPlayback.src = '';
+    resultPlayback.classList.add('hidden');
+    resultPlayback.src = '';
+    if (recordPlaybackUrl) {
+        URL.revokeObjectURL(recordPlaybackUrl);
+        recordPlaybackUrl = null;
+    }
+    if (lastAudioUrl) {
+        URL.revokeObjectURL(lastAudioUrl);
+        lastAudioUrl = null;
+    }
 }
 
 function setControlsDisabled(disabled) {
@@ -471,6 +706,7 @@ function setControlsDisabled(disabled) {
     fileInput.disabled = disabled;
     appKeyInput.disabled = disabled;
     languageSelect.disabled = disabled;
+    recordBtn.disabled = disabled;
 }
 
 function startTimer() {

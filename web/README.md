@@ -103,6 +103,9 @@
 
 当前版本支持页面直传本地音频文件：
 
+1. 前端选择本地音频文件（支持拖拽）
+2. 前端将音频传输到本服务 `/api/upload`（后端调用 Replicate Files API）
+3. 后端拿到返回 URL 后提交给 Replicate 转写
 
 支持格式：`m4a, mp3, wav, flac, ogg, wma, webm, aac`  
 推荐单文件小于 100MB（受 Replicate Files 限制）
@@ -138,4 +141,4 @@ MAX_ACTIVE_JOBS_PER_IP=2
 - `模型或版本不存在` / HTTP `404`：
   - 检查 `REPLICATE_MODEL`、`REPLICATE_MODEL_VERSION` 是否有效。
 - `模型版本或输入参数无效` / HTTP `422`：
-  - 输入参数或模型版本不匹配，优先固定 `REPLICATE_MODEL_VERSION` 并核对模型输入字段。
+  - 输入参数 or 模型版本不匹配，优先固定 `REPLICATE_MODEL_VERSION` 并核对模型输入字段。

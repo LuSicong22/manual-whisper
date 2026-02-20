@@ -34,7 +34,7 @@
    # HF_TOKEN=hf_xxx
    # 可选：提示词（默认关闭，减少“术语参考”类幻觉）
    # USE_INITIAL_PROMPT=true
-   # INITIAL_PROMPT=中文会议语音逐字转写，保持口语原文，不补写无关文本。
+   # INITIAL_PROMPT=语音逐字转写，保持口语原文，不补写无关文本。
    # 可选：术语词表（逗号分隔）
    # DOMAIN_TERMS=微信,支付宝,二维码,收款码,小程序,公众号,NFC,Node ID,UID,UIA,ADNA,APP,H5
    # 可选：术语替换（JSON 或 ; 分隔键值）
@@ -103,9 +103,6 @@
 
 当前版本支持页面直传本地音频文件：
 
-1. 前端选择本地音频文件（支持拖拽）
-2. 前端上传到本服务 `/api/upload`（后端调用 Replicate Files API）
-3. 后端拿到返回 URL 后提交给 Replicate 转写
 
 支持格式：`m4a, mp3, wav, flac, ogg, wma, webm, aac`  
 推荐单文件小于 100MB（受 Replicate Files 限制）

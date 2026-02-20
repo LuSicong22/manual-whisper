@@ -4,104 +4,313 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>中文会议录音转写工具</title>
+    <title>录音转写工具</title>
     <link rel="stylesheet" href="style.css">
-    <link rel="icon" href="https://fav.farm/🎙️">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 </head>
 
 <body>
-    <div class="container">
-        <header>
-            <h1>🎙️ 中文会议录音转写</h1>
-            <p>上传录音文件，自动转写为带时间戳和说话人标签的文字稿。</p>
-        </header>
+    <!-- Background Elements -->
+    <div class="bg-elements">
+        <div class="glow-orb orb-1"></div>
+        <div class="glow-orb orb-2"></div>
+    </div>
 
-        <main>
-            <!-- 输入区域 -->
-            <div id="input-area" class="upload-area">
-                <div class="upload-content">
-                    <span class="icon">📁</span>
-                    <p>点击或拖拽上传音频文件</p>
-                    <small>支持 m4a, mp3, wav, flac, ogg, wma, webm, aac</small>
+    <!-- 顶部通栏导航 -->
+    <header class="top-nav">
+        <div class="nav-content">
+            <div class="logo-wrapper">
+                <img src="logo.png" alt="FlashNotes Logo" class="nav-logo" />
+                <h1 class="text-gradient" data-i18n="app-title">闪记</h1>
+            </div>
+            <div class="custom-dropdown" id="app-lang-dropdown">
+                <div class="app-lang-pill" id="app-lang-trigger" tabindex="0">
+                    <svg class="lang-globe-icon" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="2" y1="12" x2="22" y2="12"></line>
+                        <path
+                            d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z">
+                        </path>
+                    </svg>
+                    <span id="app-lang-label" class="dropdown-label">EN</span>
+                    <svg class="chevron-down" width="12" height="12" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="6 9 12 15 18 9" />
+                    </svg>
                 </div>
-
-                <div class="form-row">
-                    <input type="password" id="app-key-input" placeholder="访问密钥（可选）" autocomplete="off" />
-                </div>
-                <div class="form-row">
-                    <label for="language-select" class="select-label">识别语言</label>
-                    <select id="language-select" class="select-input">
-                        <option value="zh">中文（推荐纯中文录音）</option>
-                        <option value="en">English（推荐纯英文录音）</option>
-                        <option value="zh+en" selected>中英混合（推荐中英对话）</option>
-                    </select>
-                </div>
-                <div class="form-row">
-                    <button id="record-btn" class="btn record">🎤 录音</button>
-                    <p id="record-status" class="record-status"></p>
-                    <div id="volume-meter" class="volume-meter hidden">
-                        <div id="volume-meter-fill" class="volume-meter-fill"></div>
-                    </div>
-                    <audio id="record-playback" class="record-playback hidden" controls></audio>
-                </div>
-                <div class="divider-or"><span>或</span></div>
-                <div class="form-row">
-                    <input type="file" id="file-input" accept=".m4a,.mp3,.wav,.flac,.ogg,.wma,.webm,.aac" hidden />
-                    <button id="pick-file-btn" class="btn secondary">选择音频文件</button>
-                    <p id="selected-file-name" class="file-name">未选择文件</p>
-                </div>
-                <div class="form-row">
-                    <button id="start-btn" class="btn primary">开始转写</button>
+                <div class="dropdown-menu hidden" id="app-lang-options">
+                    <div class="dropdown-item" data-value="zh">简体中文 (ZH)</div>
+                    <div class="dropdown-item active" data-value="en">English (EN)</div>
                 </div>
             </div>
+        </div>
+    </header>
 
-            <!-- 进度显示 -->
-            <div id="progress-area" class="hidden">
-                <div class="status-steps">
-                    <div class="step" id="step-upload">1. 上传文件</div>
-                    <div class="step" id="step-transcribe">2. AI 转写中 (<span id="timer">0s</span>)</div>
-                    <div class="step" id="step-process">3. 后处理</div>
+    <main class="layout-wrapper" id="main-content">
+        <!-- 初始输入容器：包含核心面包块与卫星组件 -->
+        <div id="input-area" class="input-container">
+            <h2 class="hero-title" data-i18n="hero-title">AI 录音转写</h2>
+            <p class="hero-desc" data-i18n="app-desc">自动转写为带时间戳和说话人标签的文字稿</p>
+
+            <!-- 核心悬浮面板 -->
+            <div class="hero-panel">
+                <div class="split-view-container">
+                    <!-- 上传区 -->
+                    <div id="upload-section" class="input-section">
+                        <button id="pick-file-btn" class="upload-area huge-area">
+                            <div class="upload-content">
+                                <svg class="upload-icon huge-icon" width="64" height="64" viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                    <polyline points="17 8 12 3 7 8" />
+                                    <line x1="12" x2="12" y1="3" y2="15" />
+                                </svg>
+                                <div class="upload-text">
+                                    <p class="upload-title huge-text" data-i18n="upload-title">导入音频进行分析</p>
+                                    <small class="upload-subtitle" data-i18n="upload-subtitle">支持 m4a, mp3, wav, flac,
+                                        ogg,
+                                        wma, webm, aac</small>
+                                </div>
+                            </div>
+                        </button>
+                        <input type="file" id="file-input" accept=".m4a,.mp3,.wav,.flac,.ogg,.wma,.webm,.aac" hidden />
+                        <div id="file-info-bar" class="file-info-bar hidden">
+                            <span id="selected-file-name" class="file-name"></span>
+                            <button id="remove-file-btn" class="remove-btn" aria-label="移除文件">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 分割线 -->
+                    <div class="split-divider">
+                        <span class="divider-text" data-i18n="or">或</span>
+                    </div>
+
+                    <!-- 录音区 -->
+                    <div id="record-section" class="input-section">
+                        <div class="record-module">
+                            <button id="record-btn" class="record-icon-btn" aria-label="录音">
+                                <svg id="record-svg-mic" width="48" height="48" viewBox="0 0 24 24" fill="none"
+                                    stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+                                    <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                                    <line x1="12" x2="12" y1="19" y2="22" />
+                                </svg>
+                                <svg id="record-svg-stop" class="hidden" width="56" height="56" viewBox="0 0 24 24"
+                                    fill="currentColor" stroke="none">
+                                    <rect x="6" y="6" width="12" height="12" rx="2" ry="2" />
+                                </svg>
+                            </button>
+                            <p id="record-label" class="huge-text record-label" data-i18n="record-start">点击开始实时录音</p>
+                            <div id="record-info-bar" class="file-info-bar hidden">
+                                <p id="record-status" class="record-status"></p>
+                                <button id="remove-record-btn" class="remove-btn" aria-label="移除录音">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                                    </svg>
+                                </button>
+                            </div>
+                            <div id="volume-meter" class="sound-wave hidden">
+                                <span class="wave-bar" id="wave-bar-1"></span>
+                                <span class="wave-bar" id="wave-bar-2"></span>
+                                <span class="wave-bar" id="wave-bar-3"></span>
+                                <span class="wave-bar" id="wave-bar-4"></span>
+                                <span class="wave-bar" id="wave-bar-5"></span>
+                            </div>
+                            <!-- Custom Record Playback Player -->
+                            <div id="record-playback-ui" class="custom-player hidden">
+                                <audio id="record-playback"></audio>
+                                <div class="cp-top">
+                                    <button class="cp-play-btn" id="cp-play-btn" aria-label="播放">
+                                        <svg id="cp-icon-play" width="18" height="18" viewBox="0 0 24 24"
+                                            fill="currentColor" stroke="none">
+                                            <polygon points="5,3 19,12 5,21" />
+                                        </svg>
+                                        <svg id="cp-icon-pause" class="hidden" width="18" height="18"
+                                            viewBox="0 0 24 24" fill="currentColor" stroke="none">
+                                            <rect x="6" y="4" width="4" height="16" />
+                                            <rect x="14" y="4" width="4" height="16" />
+                                        </svg>
+                                    </button>
+                                    <div class="cp-time">
+                                        <span id="cp-current">0:00</span>
+                                        <span class="cp-sep">/</span>
+                                        <span id="cp-duration">0:00</span>
+                                    </div>
+                                    <button class="cp-speed-btn" id="cp-speed-btn">1×</button>
+                                    <button class="cp-download-btn" id="cp-download-btn" aria-label="下载音频">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+                                            stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                            stroke-linejoin="round">
+                                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                            <polyline points="7 10 12 15 17 10" />
+                                            <line x1="12" x2="12" y1="15" y2="3" />
+                                        </svg>
+                                    </button>
+                                </div>
+                                <div class="cp-progress-track" id="cp-track">
+                                    <div class="cp-progress-fill" id="cp-fill"></div>
+                                    <div class="cp-progress-thumb" id="cp-thumb"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div class="loader"></div>
-                <p id="status-text">准备就绪...</p>
-                <div class="runtime-box">
-                    <div id="upload-status-line">上传状态：待开始</div>
-                    <div class="meter">
-                        <div id="upload-progress-fill" class="meter-fill"></div>
+                <div id="action-wrapper" class="hidden fade-in-up">
+                    <!-- 小巧散落的辅助设置 (卫星轨道设计) -->
+                    <div class="settings-satellites">
+                        <div class="language-setting-group">
+                            <div class="custom-dropdown" id="language-dropdown">
+                                <div class="satellite-pill" id="language-select-trigger" tabindex="0">
+                                    <svg class="satellite-icon" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                        stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                        stroke-linejoin="round">
+                                        <circle cx="12" cy="12" r="10" />
+                                        <line x1="2" y1="12" x2="22" y2="12" />
+                                        <path
+                                            d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                                    </svg>
+                                    <span id="language-select-label" class="dropdown-label" data-i18n="lang-mix">转写语言:
+                                        中英混合</span>
+                                    <svg class="chevron-down" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                                        stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                        stroke-linejoin="round">
+                                        <polyline points="6 9 12 15 18 9" />
+                                    </svg>
+                                </div>
+                                <div class="dropdown-menu hidden" id="language-options">
+                                    <div class="dropdown-item" data-value="zh" data-i18n="lang-zh">转写语言: 简体中文</div>
+                                    <div class="dropdown-item" data-value="en" data-i18n="lang-en">转写语言: English</div>
+                                    <div class="dropdown-item active" data-value="zh+en" data-i18n="lang-mix">转写语言: 中英混合
+                                    </div>
+                                </div>
+                            </div>
+                            <p class="language-tip" data-i18n="lang-tip">💡 指定语言可大幅提升转写准确率，减少“幻听”现象。</p>
+                        </div>
                     </div>
-                    <div id="transcribe-status-line">转写状态：待开始</div>
-                    <div class="meter">
-                        <div id="transcribe-progress-fill" class="meter-fill"></div>
+
+                    <div class="action-row">
+                        <button id="start-btn" class="btn primary glow-btn huge-start" disabled
+                            data-i18n="btn-start">准备就绪，开始转写</button>
                     </div>
-                    <div id="task-id-line" class="runtime-muted"></div>
-                    <div id="transcribe-log-line" class="runtime-muted"></div>
+
                 </div>
             </div>
+        </div>
 
-            <!-- 结果区域 -->
-            <div id="result-area" class="hidden">
-                <div class="actions">
-                    <button id="download-md" class="btn primary">📥 下载 Markdown</button>
-                    <button id="download-json" class="btn secondary">📥 下载 JSON</button>
+        <!-- 进度显示 (居中悬浮) -->
+        <div id="progress-area" class="hidden glass-panel progress-panel">
+            <div class="status-steps">
+                <div class="step" id="step-upload" data-i18n="step-upload">准备数据</div>
+                <div class="step" id="step-transcribe"><span data-i18n="step-transcribe">AI 转写中</span> (<span
+                        id="timer">0s</span>)</div>
+                <div class="step" id="step-process" data-i18n="step-process">后处理</div>
+            </div>
+            <div class="loader-wrapper">
+                <div class="modern-loader"></div>
+            </div>
+            <p id="status-text" class="status-text-highlight" data-i18n="status-ready">准备就绪...</p>
+            <div class="runtime-box glass-panel-inner">
+                <div id="upload-status-line" class="runtime-line" data-i18n="upload-status">传输状态：待开始</div>
+                <div class="meter">
+                    <div id="upload-progress-fill" class="meter-fill fill-cyan"></div>
                 </div>
-                <div class="actions">
-                    <button id="new-upload-btn" class="btn outline">🔄 上传新录音</button>
+                <div id="transcribe-status-line" class="runtime-line" data-i18n="transcribe-status">转写状态：待开始</div>
+                <div class="meter">
+                    <div id="transcribe-progress-fill" class="meter-fill fill-purple"></div>
                 </div>
-                <audio id="result-playback" class="result-playback hidden" controls></audio>
-                <div class="preview-box">
-                    <h3>转写预览</h3>
-                    <div id="transcript-preview"></div>
+                <div id="task-id-line" class="runtime-muted"></div>
+                <div id="transcribe-log-line" class="runtime-muted"></div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 宏大的结果区域，铺满宽屏 -->
+    <div id="result-area" class="hidden wide-result-area">
+        <div class="result-header">
+            <div class="header-main">
+                <h2 class="result-title" data-i18n="result-title">转写完成</h2>
+                <!-- Custom Result Playback Player -->
+                <div id="result-playback-ui" class="custom-player hidden res-player">
+                    <audio id="result-playback"></audio>
+                    <div class="cp-top">
+                        <button class="cp-play-btn" id="res-play-btn" aria-label="播放">
+                            <svg id="res-icon-play" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"
+                                stroke="none">
+                                <polygon points="5,3 19,12 5,21" />
+                            </svg>
+                            <svg id="res-icon-pause" class="hidden" width="18" height="18" viewBox="0 0 24 24"
+                                fill="currentColor" stroke="none">
+                                <rect x="6" y="4" width="4" height="16" />
+                                <rect x="14" y="4" width="4" height="16" />
+                            </svg>
+                        </button>
+                        <div class="cp-time">
+                            <span id="res-current">0:00</span>
+                            <span class="cp-sep">/</span>
+                            <span id="res-duration">0:00</span>
+                        </div>
+                        <button class="cp-speed-btn" id="res-speed-btn">1×</button>
+                        <button class="cp-download-btn" id="res-download-btn" aria-label="下载音频">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                <polyline points="7 10 12 15 17 10" />
+                                <line x1="12" x2="12" y1="15" y2="3" />
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="cp-progress-track" id="res-track">
+                        <div class="cp-progress-fill" id="res-fill"></div>
+                        <div class="cp-progress-thumb" id="res-thumb"></div>
+                    </div>
                 </div>
             </div>
+            <div class="actions">
+                <button id="download-md" class="btn primary" data-i18n="btn-md">下载 Markdown</button>
+                <button id="download-json" class="btn secondary" data-i18n="btn-json">下载 JSON</button>
+                <button id="new-upload-btn" class="btn outline" data-i18n="btn-new">开始新转写</button>
+            </div>
+        </div>
+        <div class="preview-box glass-panel wide-preview-inner">
+            <div id="transcript-preview"></div>
+        </div>
+    </div>
 
-            <!-- 错误提示 -->
-            <div id="error-message" class="error-box hidden"></div>
-        </main>
+    <!-- 确认弹窗 Modal -->
+    <div id="confirm-modal" class="modal-overlay hidden">
+        <div class="modal-content glass-panel">
+            <h3 id="modal-title" class="modal-title" data-i18n="record-stop-confirm">确认结束录音吗？</h3>
+            <div class="modal-actions">
+                <button id="confirm-cancel" class="btn secondary" data-i18n="btn-cancel">取消</button>
+                <button id="confirm-ok" class="btn danger" data-i18n="confirm-ok">确定结束</button>
+            </div>
+        </div>
+    </div>
 
-        <footer>
-            <p>Powered by WhisperX & Replicate</p>
-        </footer>
-        <script src="main.js"></script>
+    <!-- 全局悬浮错误提示 -->
+    <div id="error-message" class="error-box hidden fixed-error"></div>
+
+    <!-- 意见反馈悬浮按钮 -->
+    <a href="https://wj.qq.com/s2/25776996/fc92/" target="_blank" class="feedback-fab" aria-label="意见反馈">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+        </svg>
+        <span class="feedback-label" data-i18n="feedback">意见反馈</span>
+    </a>
+
+    <script type="module" src="main.js"></script>
 </body>
 
 </html>

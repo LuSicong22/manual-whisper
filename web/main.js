@@ -1,9 +1,22 @@
+/**
+ * main.js - App Controller for manual-whisper
+ */
+import { formatTime, formatBytes, sleep, clampPercent, extractFileBaseName } from './utils.js';
+import { t, setAppLang, getCurrentLang, updateDOMTranslations } from './i18n.js';
+import { uploadFile, createTranscription, pollTranscriptionStatus } from './apiService.js';
+import { AudioRecorder } from './audioRecorder.js';
+
+// --- DOM Elements ---
 const inputArea = document.getElementById('input-area');
 const fileInput = document.getElementById('file-input');
 const pickFileBtn = document.getElementById('pick-file-btn');
+const fileInfoBar = document.getElementById('file-info-bar');
 const selectedFileName = document.getElementById('selected-file-name');
-const appKeyInput = document.getElementById('app-key-input');
-const languageSelect = document.getElementById('language-select');
+const removeFileBtn = document.getElementById('remove-file-btn');
+const languageSelectTrigger = document.getElementById('language-select-trigger');
+const languageSelectLabel = document.getElementById('language-select-label');
+const languageOptions = document.getElementById('language-options');
+const languageItems = document.querySelectorAll('.dropdown-item');
 const startBtn = document.getElementById('start-btn');
 const progressArea = document.getElementById('progress-area');
 const resultArea = document.getElementById('result-area');
@@ -23,297 +36,304 @@ const transcribeLogLine = document.getElementById('transcribe-log-line');
 const recordBtn = document.getElementById('record-btn');
 const recordStatus = document.getElementById('record-status');
 const volumeMeter = document.getElementById('volume-meter');
-const volumeMeterFill = document.getElementById('volume-meter-fill');
+const waveBars = document.querySelectorAll('.wave-bar');
 const recordPlayback = document.getElementById('record-playback');
 const resultPlayback = document.getElementById('result-playback');
+const uploadSection = document.getElementById('upload-section');
+const recordSection = document.getElementById('record-section');
+const recordInfoBar = document.getElementById('record-info-bar');
+const removeRecordBtn = document.getElementById('remove-record-btn');
 
+// Custom Player Elements
+const cpPlayerUI = document.getElementById('record-playback-ui');
+const cpPlayBtn = document.getElementById('cp-play-btn');
+const cpIconPlay = document.getElementById('cp-icon-play');
+const cpIconPause = document.getElementById('cp-icon-pause');
+const cpCurrentTime = document.getElementById('cp-current');
+const cpDurationTime = document.getElementById('cp-duration');
+const cpSpeedBtn = document.getElementById('cp-speed-btn');
+const cpTrack = document.getElementById('cp-track');
+const cpFill = document.getElementById('cp-fill');
+const cpThumb = document.getElementById('cp-thumb');
+const cpDownloadBtn = document.getElementById('cp-download-btn');
+
+// Custom Result Player Elements
+const resPlayerUI = document.getElementById('result-playback-ui');
+const resPlayBtn = document.getElementById('res-play-btn');
+const resIconPlay = document.getElementById('res-icon-play');
+const resIconPause = document.getElementById('res-icon-pause');
+const resCurrentTime = document.getElementById('res-current');
+const resDurationTime = document.getElementById('res-duration');
+const resSpeedBtn = document.getElementById('res-speed-btn');
+const resTrack = document.getElementById('res-track');
+const resFill = document.getElementById('res-fill');
+const resThumb = document.getElementById('res-thumb');
+const resDownloadBtn = document.getElementById('res-download-btn');
+
+// Confirm Modal Elements
+const confirmModal = document.getElementById('confirm-modal');
+const confirmOkBtn = document.getElementById('confirm-ok');
+const confirmCancelBtn = document.getElementById('confirm-cancel');
+const modalTitle = document.getElementById('modal-title');
+
+// --- Global State ---
 let lastAudioUrl = null;
-
 let recordPlaybackUrl = null;
-
 let startTime;
 let timerInterval;
 let currentFileBaseName = 'transcript';
 let selectedFile = null;
 let running = false;
 let transcribePercentHint = 0;
+let currentTranscriptionLanguage = 'zh+en';
+let modalContext = null; // 'stop' or 'remove'
 
-// Recording state
-let audioContext = null;
-let scriptProcessor = null;
-let mediaStreamSource = null;
-let recordingStream = null;
-let recordStartTime = null;
-let recordTimerInterval = null;
-let isRecording = false;
-let audioBuffers = [];
-let recordingLength = 0;
-const targetSampleRate = 16000;
+// --- Initialize Components ---
+const recorder = new AudioRecorder();
+recorder.onVolumeChange = (rms) => {
+    const level = Math.min(1, rms * 6);
+    waveBars.forEach((bar, i) => {
+        const variance = 0.7 + Math.random() * 0.7;
+        const h = Math.max(8, Math.round(level * 40 * variance));
+        bar.style.height = `${h}px`;
+        bar.style.opacity = level < 0.05 ? '0.3' : '1';
+    });
+};
 
-const POLL_TIMEOUT_MS = 30 * 60 * 1000;
-const INITIAL_POLL_INTERVAL_MS = 3000;
-const MAX_POLL_INTERVAL_MS = 10000;
 const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
 const SUPPORTED_EXTENSIONS = ['.m4a', '.mp3', '.wav', '.flac', '.ogg', '.wma', '.webm', '.aac'];
 
-initialize();
+let recordStartTime = null;
+let recordTimerInterval = null;
 
-function initialize() {
-    const savedKey = localStorage.getItem('appKey') || '';
-    appKeyInput.value = savedKey;
+// --- Functions ---
 
-    const savedLang = localStorage.getItem('language');
-    if (savedLang && [...languageSelect.options].some(o => o.value === savedLang)) {
-        languageSelect.value = savedLang;
+function setupCustomPlayer(audio, playBtn, iconPlay, iconPause, currentTime, durationTime, speedBtn, track, fill, thumb, downloadBtn) {
+    playBtn.addEventListener('click', () => {
+        if (audio.paused) audio.play();
+        else audio.pause();
+    });
+
+    audio.addEventListener('play', () => {
+        iconPlay.classList.add('hidden');
+        iconPause.classList.remove('hidden');
+    });
+
+    audio.addEventListener('pause', () => {
+        iconPlay.classList.remove('hidden');
+        iconPause.classList.add('hidden');
+    });
+
+    audio.addEventListener('timeupdate', () => {
+        if (durationTime.textContent === '0:00' && audio.duration) {
+            durationTime.textContent = formatTime(audio.duration);
+        }
+        const p = (audio.currentTime / audio.duration) * 100;
+        fill.style.width = `${p}%`;
+        thumb.style.left = `${p}%`;
+        currentTime.textContent = formatTime(audio.currentTime);
+    });
+
+    audio.addEventListener('loadedmetadata', () => {
+        durationTime.textContent = formatTime(audio.duration);
+    });
+
+    track.addEventListener('click', (e) => {
+        const rect = track.getBoundingClientRect();
+        const p = (e.clientX - rect.left) / rect.width;
+        audio.currentTime = p * audio.duration;
+    });
+
+    const speeds = [1, 1.25, 1.5, 2, 0.75];
+    let speedIdx = 0;
+    speedBtn.addEventListener('click', () => {
+        speedIdx = (speedIdx + 1) % speeds.length;
+        const s = speeds[speedIdx];
+        audio.playbackRate = s;
+        speedBtn.textContent = `${s}×`;
+    });
+
+    if (downloadBtn) {
+        downloadBtn.addEventListener('click', () => {
+            if (!audio.src) return;
+            const a = document.createElement('a');
+            a.href = audio.src;
+            // Determine extension from original filename if possible, otherwise .wav for recordings
+            let ext = '.wav';
+            if (audio.id === 'result-playback' && selectedFile) {
+                const parts = selectedFile.name.split('.');
+                if (parts.length > 1) ext = '.' + parts.pop();
+            }
+            a.download = currentFileBaseName + ext;
+            a.click();
+        });
     }
-
-    pickFileBtn.addEventListener('click', () => fileInput.click());
-    fileInput.addEventListener('change', (e) => {
-        const file = e.target.files && e.target.files[0];
-        updateSelectedFile(file || null);
-    });
-
-    inputArea.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        inputArea.classList.add('dragover');
-    });
-    inputArea.addEventListener('dragleave', () => {
-        inputArea.classList.remove('dragover');
-    });
-    inputArea.addEventListener('drop', (e) => {
-        e.preventDefault();
-        inputArea.classList.remove('dragover');
-        const file = e.dataTransfer.files && e.dataTransfer.files[0];
-        updateSelectedFile(file || null);
-    });
-
-    startBtn.addEventListener('click', async () => {
-        const appKey = appKeyInput.value.trim();
-        const language = languageSelect.value;
-        await startTranscription(selectedFile, appKey, language);
-    });
-
-    appKeyInput.addEventListener('keydown', async (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            const appKey = appKeyInput.value.trim();
-            const language = languageSelect.value;
-            await startTranscription(selectedFile, appKey, language);
-        }
-    });
-
-    newUploadBtn.addEventListener('click', () => {
-        resetUI();
-    });
-
-    recordBtn.addEventListener('click', () => {
-        if (isRecording) {
-            stopRecording();
-        } else {
-            startRecording();
-        }
-    });
 }
 
-function updateSelectedFile(file) {
+function updateAppLanguageUI(lang) {
+    setAppLang(lang);
+    updateDOMTranslations();
+
+    // Update Dropdown UI
+    const triggerLabel = document.getElementById('app-lang-label');
+    const options = document.getElementById('app-lang-options');
+    const items = options.querySelectorAll('.dropdown-item');
+
+    triggerLabel.textContent = lang.toUpperCase();
+    items.forEach(item => {
+        item.classList.toggle('active', item.dataset.value === lang);
+    });
+
+    if (!selectedFile && !recordPlaybackUrl) {
+        selectedFileName.textContent = t('no-file');
+    }
+
+    document.getElementById('record-label').textContent = recorder.isRecording ? t('record-stop') : t('record-start');
+
+    // Refresh transcription language label
+    const activeItem = document.querySelector('#language-options .dropdown-item.active');
+    if (activeItem) {
+        languageSelectLabel.textContent = activeItem.textContent;
+    }
+}
+
+function updateSelectedFile(file, source = 'upload') {
     selectedFile = file;
+    const actionWrapper = document.getElementById('action-wrapper');
+    const splitDivider = document.querySelector('.split-divider');
+
     if (!file) {
-        selectedFileName.textContent = '未选择文件';
+        if (selectedFileName) selectedFileName.textContent = '';
+        if (fileInfoBar) fileInfoBar.classList.add('hidden');
+        if (recordInfoBar) recordInfoBar.classList.add('hidden');
+        recordStatus.textContent = '';
+        recordSection.classList.remove('dimmed', 'hidden');
+        uploadSection.classList.remove('dimmed', 'hidden');
+        if (splitDivider) splitDivider.classList.remove('hidden');
+        startBtn.disabled = true;
+        cpPlayerUI.classList.add('hidden');
+        if (recordPlaybackUrl) {
+            URL.revokeObjectURL(recordPlaybackUrl);
+            recordPlaybackUrl = null;
+        }
+
+        if (actionWrapper) actionWrapper.classList.add('hidden');
         return;
     }
 
-    selectedFileName.textContent = `${file.name} (${formatBytes(file.size)})`;
-    currentFileBaseName = extractFileBaseName(file.name);
+    if (source === 'upload') {
+        selectedFileName.textContent = `${file.name} (${formatBytes(file.size)})`;
+        if (fileInfoBar) fileInfoBar.classList.remove('hidden');
+        if (recordInfoBar) recordInfoBar.classList.add('hidden');
+        recordStatus.textContent = '';
+        recordSection.classList.add('hidden');
+        if (splitDivider) splitDivider.classList.add('hidden');
+        uploadSection.classList.remove('dimmed');
+    } else {
+        if (fileInfoBar) fileInfoBar.classList.add('hidden');
+        if (recordInfoBar) recordInfoBar.classList.remove('hidden');
+        if (removeRecordBtn) removeRecordBtn.classList.remove('hidden'); // Show remove button when done
+        uploadSection.classList.add('dimmed');
+        recordSection.classList.remove('dimmed');
+    }
 
-    // Create a URL for result-page playback
+    currentFileBaseName = extractFileBaseName(file.name);
+    startBtn.disabled = false;
+
+    if (actionWrapper) actionWrapper.classList.remove('hidden');
+
     if (lastAudioUrl) URL.revokeObjectURL(lastAudioUrl);
     lastAudioUrl = URL.createObjectURL(file);
 }
 
 async function startRecording() {
     try {
-        recordingStream = await navigator.mediaDevices.getUserMedia({
-            audio: {
-                channelCount: 1,
-                sampleRate: targetSampleRate
-            }
-        });
+        await recorder.start();
+
+        recordStartTime = Date.now();
+        updateSelectedFile(null);
+        uploadSection.classList.add('dimmed');
+
+        cpPlayerUI.classList.add('hidden');
+        recordPlayback.src = '';
+        document.getElementById('record-svg-mic').classList.add('hidden');
+        document.getElementById('record-svg-stop').classList.remove('hidden');
+        document.getElementById('record-label').textContent = t('record-stop');
+        recordBtn.classList.add('recording');
+        setRecordingControlsDisabled(true);
+        recordInfoBar.classList.remove('hidden');
+        removeRecordBtn.classList.add('hidden'); // Hide remove button during recording
+        recordStatus.textContent = t('recording') + '00:00';
+        errorMessage.classList.add('hidden');
+        volumeMeter.classList.remove('hidden');
+        waveBars.forEach(b => { b.style.height = '8px'; b.style.opacity = '0.4'; });
+
+        recordTimerInterval = setInterval(() => {
+            const sec = Math.floor((Date.now() - recordStartTime) / 1000);
+            const mm = String(Math.floor(sec / 60)).padStart(2, '0');
+            const ss = String(sec % 60).padStart(2, '0');
+            recordStatus.textContent = t('recording') + `${mm}:${ss}`;
+        }, 500);
     } catch (err) {
-        console.error('Microphone access denied:', err);
-        showError('无法访问麦克风，请在浏览器中允许麦克风权限。');
-        return;
+        showError(err.message);
     }
-
-    audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: targetSampleRate });
-    mediaStreamSource = audioContext.createMediaStreamSource(recordingStream);
-
-    // Use ScriptProcessorNode (deprecated but widely supported and reliable for raw PCM extraction)
-    scriptProcessor = audioContext.createScriptProcessor(4096, 1, 1);
-
-    audioBuffers = [];
-    recordingLength = 0;
-
-    scriptProcessor.onaudioprocess = (e) => {
-        if (!isRecording) return;
-        const channelData = e.inputBuffer.getChannelData(0);
-        // Copy data to avoid mutation
-        const buffer = new Float32Array(channelData.length);
-        buffer.set(channelData);
-        audioBuffers.push(buffer);
-        recordingLength += buffer.length;
-
-        // Compute RMS volume for the visual meter
-        let sum = 0;
-        for (let i = 0; i < channelData.length; i++) {
-            sum += channelData[i] * channelData[i];
-        }
-        const rms = Math.sqrt(sum / channelData.length);
-        // Map RMS (0..~0.5) to percentage (0..100), with amplification for quiet sources
-        const level = Math.min(100, Math.round(rms * 300));
-        volumeMeterFill.style.width = `${level}%`;
-    };
-
-    mediaStreamSource.connect(scriptProcessor);
-    scriptProcessor.connect(audioContext.destination);
-
-    isRecording = true;
-    recordStartTime = Date.now();
-
-    recordPlayback.classList.add('hidden');
-    recordPlayback.src = '';
-    recordBtn.textContent = '⏹ 停止录音';
-    recordBtn.classList.add('recording');
-    setRecordingControlsDisabled(true);
-    recordStatus.textContent = '🔴 录音中 — 00:00';
-    errorMessage.classList.add('hidden');
-    volumeMeter.classList.remove('hidden');
-    volumeMeterFill.style.width = '0%';
-
-    recordTimerInterval = setInterval(() => {
-        const sec = Math.floor((Date.now() - recordStartTime) / 1000);
-        const mm = String(Math.floor(sec / 60)).padStart(2, '0');
-        const ss = String(sec % 60).padStart(2, '0');
-        recordStatus.textContent = `🔴 录音中 — ${mm}:${ss}`;
-    }, 500);
 }
 
-async function stopRecording() {
-    isRecording = false;
-
-    if (scriptProcessor) {
-        scriptProcessor.disconnect();
-        mediaStreamSource.disconnect();
-    }
-
-    // Construct the WAV file
-    const audioData = mergeAudioBuffers(audioBuffers, recordingLength);
-    const wavBlob = encodeWAV(audioData, audioContext.sampleRate);
-
+function stopRecording() {
+    const wavBlob = recorder.stop();
     const now = new Date();
     const ts = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}`;
     const fileName = `录音_${ts}.wav`;
     const file = new File([wavBlob], fileName, { type: 'audio/wav' });
 
-    updateSelectedFile(file);
-    recordStatus.textContent = `✅ 录音完成 — ${formatBytes(file.size)}`;
+    updateSelectedFile(file, 'record');
+    recordStatus.textContent = t('record-done') + `${formatBytes(file.size)}`;
 
-    // Enable playback
     if (recordPlaybackUrl) URL.revokeObjectURL(recordPlaybackUrl);
     recordPlaybackUrl = URL.createObjectURL(wavBlob);
     recordPlayback.src = recordPlaybackUrl;
-    recordPlayback.classList.remove('hidden');
+    cpPlayerUI.classList.remove('hidden');
 
-    cleanupRecording();
+    // Reset custom UI
+    cpFill.style.width = '0%';
+    cpThumb.style.left = '0%';
+    cpCurrentTime.textContent = '0:00';
+    cpIconPlay.classList.remove('hidden');
+    cpIconPause.classList.add('hidden');
+
+    cleanupRecordingState();
 }
 
-function cleanupRecording() {
-    isRecording = false;
+function cleanupRecordingState() {
     clearInterval(recordTimerInterval);
     recordTimerInterval = null;
 
-    recordBtn.textContent = '🎤 录音';
+    document.getElementById('record-svg-mic').classList.remove('hidden');
+    document.getElementById('record-svg-stop').classList.add('hidden');
+    document.getElementById('record-label').textContent = t('record-start');
     recordBtn.classList.remove('recording');
     volumeMeter.classList.add('hidden');
-    volumeMeterFill.style.width = '0%';
-    // Keep playback visible — only hide on new recording or resetUI
+    waveBars.forEach(b => { b.style.height = '8px'; b.style.opacity = '0.4'; });
     setRecordingControlsDisabled(false);
 
-    if (recordingStream) {
-        recordingStream.getTracks().forEach((t) => t.stop());
-        recordingStream = null;
-    }
-    if (audioContext && audioContext.state !== 'closed') {
-        audioContext.close();
+    if (!selectedFile) {
+        uploadSection.classList.remove('dimmed');
     }
 
-    audioBuffers = [];
-    recordingLength = 0;
-    audioContext = null;
-    scriptProcessor = null;
-    mediaStreamSource = null;
-}
-
-function mergeAudioBuffers(channelBuffer, recordingLength) {
-    const result = new Float32Array(recordingLength);
-    let offset = 0;
-    for (let i = 0; i < channelBuffer.length; i++) {
-        const buffer = channelBuffer[i];
-        result.set(buffer, offset);
-        offset += buffer.length;
-    }
-    return result;
-}
-
-function encodeWAV(samples, sampleRate) {
-    const buffer = new ArrayBuffer(44 + samples.length * 2);
-    const view = new DataView(buffer);
-
-    // RIFF chunk descriptor
-    writeString(view, 0, 'RIFF');
-    view.setUint32(4, 36 + samples.length * 2, true);
-    writeString(view, 8, 'WAVE');
-
-    // FMT sub-chunk
-    writeString(view, 12, 'fmt ');
-    view.setUint32(16, 16, true); // Subchunk1Size (16 for PCM)
-    view.setUint16(20, 1, true); // AudioFormat (1 for PCM)
-    view.setUint16(22, 1, true); // NumChannels (1 channel)
-    view.setUint32(24, sampleRate, true); // SampleRate
-    view.setUint32(28, sampleRate * 2, true); // ByteRate (SampleRate * NumChannels * BitsPerSample/8)
-    view.setUint16(32, 2, true); // BlockAlign (NumChannels * BitsPerSample/8)
-    view.setUint16(34, 16, true); // BitsPerSample
-
-    // Data sub-chunk
-    writeString(view, 36, 'data');
-    view.setUint32(40, samples.length * 2, true);
-
-    // Write PCM samples
-    let offset = 44;
-    for (let i = 0; i < samples.length; i++, offset += 2) {
-        let s = Math.max(-1, Math.min(1, samples[i]));
-        view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
-    }
-
-    return new Blob([view], { type: 'audio/wav' });
-}
-
-function writeString(view, offset, string) {
-    for (let i = 0; i < string.length; i++) {
-        view.setUint8(offset + i, string.charCodeAt(i));
-    }
+    recorder.cleanup();
 }
 
 function setRecordingControlsDisabled(disabled) {
-    startBtn.disabled = disabled;
+    startBtn.disabled = disabled || !selectedFile;
     pickFileBtn.disabled = disabled;
     fileInput.disabled = disabled;
 }
 
-async function startTranscription(file, appKey, language) {
+async function startTranscriptionTask(file, language) {
     if (running) return;
 
     if (!file) {
-        showError('请先选择音频文件');
+        showError(t('error-select-file'));
         return;
     }
     if (file.size <= 0) {
@@ -324,16 +344,11 @@ async function startTranscription(file, appKey, language) {
         showError('文件过大，当前直传上限约 100MB');
         return;
     }
-    if (!hasSupportedExtension(file.name)) {
+    if (!SUPPORTED_EXTENSIONS.some(ext => file.name.toLowerCase().endsWith(ext))) {
         showError(`文件格式不支持，仅支持: ${SUPPORTED_EXTENSIONS.join(', ')}`);
         return;
     }
 
-    if (appKey) {
-        localStorage.setItem('appKey', appKey);
-    } else {
-        localStorage.removeItem('appKey');
-    }
     localStorage.setItem('language', language);
     running = true;
     setControlsDisabled(true);
@@ -347,47 +362,29 @@ async function startTranscription(file, appKey, language) {
     resetRuntimeBox(file);
 
     try {
-        updateStatus('upload', '正在上传文件到 Replicate...');
-        const fileUrl = await uploadFileToTempStorage(file, appKey, (uploaded, total) => {
+        updateStatus('upload', t('status-uploading'));
+        const fileUrl = await uploadFile(file, (uploaded, total) => {
             const percent = Math.round((uploaded / total) * 100);
-            setUploadProgress(percent, `上传状态：${percent}% (${formatBytes(uploaded)} / ${formatBytes(total)})`);
+            setUploadProgress(percent, `${t('transfer-progress')}：${percent}% (${formatBytes(uploaded)} / ${formatBytes(total)})`);
         });
 
-        setUploadProgress(100, `上传状态：成功 (${formatBytes(file.size)})`);
-        updateStatus('transcribe', '文件上传成功，正在创建转写任务...');
-        setTranscribeProgress(5, '转写状态：创建任务中...');
+        setUploadProgress(100, `${t('transfer-success')} (${formatBytes(file.size)})`);
+        updateStatus('transcribe', t('status-creating-task'));
+        setTranscribeProgress(5, `${t('transcribe-status').split('：')[0]}：${t('transcribe-creating')}...`);
 
-        const transcribeHeaders = {
-            'Content-Type': 'application/json'
-        };
-        if (appKey) {
-            transcribeHeaders['x-app-key'] = appKey;
-        }
-
-        const startRes = await fetch('/api/transcribe', {
-            method: 'POST',
-            headers: transcribeHeaders,
-            body: JSON.stringify({
-                fileUrl,
-                sourceFilename: file.name,
-                language: language || 'zh+en'
-            })
-        });
-
-        if (!startRes.ok) {
-            const err = await safeJson(startRes);
-            throw new Error(`[${startRes.status}] ${err.error || 'Prediction failed to start'}`);
-        }
-
-        const startData = await startRes.json();
+        const startData = await createTranscription(fileUrl, file.name, language);
         const predictionId = startData.id;
         if (!predictionId) throw new Error('Missing prediction id');
         taskIdLine.textContent = `任务 ID：${predictionId}`;
 
-        updateStatus('transcribe', 'AI 正在转写 (通常需要 2-5 分钟)...');
+        updateStatus('transcribe', t('status-transcribing'));
         renderPredictionProgress(startData);
 
-        await pollStatus(predictionId, appKey);
+        const finalData = await pollTranscriptionStatus(predictionId, (data) => {
+            renderPredictionProgress(data);
+        });
+
+        finishProcess(finalData.output);
     } catch (error) {
         console.error(error);
         showError(error.message);
@@ -395,116 +392,14 @@ async function startTranscription(file, appKey, language) {
     }
 }
 
-function uploadFileToTempStorage(file, appKey, onProgress) {
-    return new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open('POST', '/api/upload');
-        xhr.responseType = 'json';
-        if (appKey) {
-            xhr.setRequestHeader('x-app-key', appKey);
-        }
-        xhr.setRequestHeader('x-file-name', encodeURIComponent(file.name));
-        xhr.setRequestHeader('x-file-content-type', file.type || 'application/octet-stream');
-        xhr.setRequestHeader('content-type', 'application/octet-stream');
-
-        xhr.upload.onprogress = (event) => {
-            if (event.lengthComputable && typeof onProgress === 'function') {
-                onProgress(event.loaded, event.total);
-            }
-        };
-
-        xhr.onerror = () => reject(new Error('上传失败'));
-        xhr.onabort = () => reject(new Error('上传被取消'));
-
-        xhr.onload = () => {
-            if (xhr.status < 200 || xhr.status >= 300) {
-                const payload = safeParseXhrJson(xhr);
-                reject(new Error(`[${xhr.status}] ${payload.error || '上传失败'}`));
-                return;
-            }
-
-            let uploadData = xhr.response;
-            if (!uploadData) {
-                try {
-                    uploadData = JSON.parse(xhr.responseText);
-                } catch {
-                    reject(new Error('上传服务返回异常'));
-                    return;
-                }
-            }
-
-            if (!uploadData.fileUrl) {
-                reject(new Error('上传服务返回异常'));
-                return;
-            }
-
-            resolve(uploadData.fileUrl);
-        };
-
-        xhr.send(file);
-    });
-}
-
-function safeParseXhrJson(xhr) {
-    if (xhr.response && typeof xhr.response === 'object') {
-        return xhr.response;
-    }
-    if (typeof xhr.responseText === 'string' && xhr.responseText.length > 0) {
-        try {
-            return JSON.parse(xhr.responseText);
-        } catch {
-            return {};
-        }
-    }
-    return {};
-}
-
-async function pollStatus(predictionId, appKey) {
-    const start = Date.now();
-    let interval = INITIAL_POLL_INTERVAL_MS;
-
-    while (true) {
-        if (Date.now() - start > POLL_TIMEOUT_MS) {
-            throw new Error('转写超时，请稍后重试');
-        }
-
-        const pollHeaders = {};
-        if (appKey) {
-            pollHeaders['x-app-key'] = appKey;
-        }
-        const res = await fetch(`/api/transcribe?id=${encodeURIComponent(predictionId)}`, {
-            headers: pollHeaders
-        });
-
-        if (!res.ok) {
-            const err = await safeJson(res);
-            throw new Error(`[${res.status}] ${err.error || 'Failed to fetch prediction status'}`);
-        }
-
-        const data = await res.json();
-        renderPredictionProgress(data);
-
-        if (data.status === 'succeeded') {
-            finishProcess(data.output);
-            break;
-        }
-        if (data.status === 'failed' || data.status === 'canceled') {
-            throw new Error(`Task ${data.status}: ${data.error || 'Unknown error'}`);
-        }
-
-        await sleep(interval);
-        interval = Math.min(MAX_POLL_INTERVAL_MS, interval + 1000);
-    }
-}
-
 function renderPredictionProgress(data) {
     const status = data.status || 'starting';
     const progress = data.progress || {};
 
-    const mappedStatus = statusToChinese(status);
+    const mappedStatus = statusToLocalized(status);
     const computedPercent = computeTranscribePercent(status, progress);
-    const elapsedSec = typeof progress.elapsedSec === 'number' ? `，已用时 ${progress.elapsedSec}s` : '';
-    setTranscribeProgress(computedPercent, `转写状态：${mappedStatus} (${computedPercent}%)${elapsedSec}`);
+    const elapsedSec = typeof progress.elapsedSec === 'number' ? `${getCurrentLang() === 'zh' ? '，已用时 ' : ', elapsed '}${progress.elapsedSec}s` : '';
+    setTranscribeProgress(computedPercent, `${t('transcribe-status').split('：')[0]}：${mappedStatus} (${computedPercent}%)${elapsedSec}`);
 
     if (data.id) {
         taskIdLine.textContent = `任务 ID：${data.id}`;
@@ -517,29 +412,22 @@ function renderPredictionProgress(data) {
     }
     if (progress.cleanup && typeof progress.cleanup === 'object') {
         const c = progress.cleanup;
-        const removed =
-            Number(c.removed_prompt_only_segments || 0) +
-            Number(c.removed_hallucination_segments || 0) +
-            Number(c.removed_noise_segments || 0);
+        const removed = Number(c.removed_prompt_only_segments || 0) + Number(c.removed_hallucination_segments || 0) + Number(c.removed_noise_segments || 0);
         const cleaned = Number(c.cleaned_prompt_fragments || 0) + Number(c.cleaned_hallucination_fragments || 0);
         extras.push(`后处理：清理 ${cleaned}，删除 ${removed}`);
     }
     if (progress.quality && typeof progress.quality === 'object') {
         const warnings = Array.isArray(progress.quality.warnings) ? progress.quality.warnings : [];
-        if (warnings.length > 0) {
-            extras.push(`质量告警：${warnings[0]}`);
-        }
+        if (warnings.length > 0) extras.push(`质量告警：${warnings[0]}`);
     }
     if (progress.secondPass && typeof progress.secondPass === 'object') {
         const sp = progress.secondPass;
-        const spStatus = statusToChinese(sp.status || '');
+        const spStatus = statusToLocalized(sp.status || '');
         const spPercent = Number(sp.percent);
         const hasPercent = Number.isFinite(spPercent);
         const rangeCount = Array.isArray(sp.ranges) ? sp.ranges.length : 0;
-        const statusText = hasPercent ? `${spStatus} (${Math.max(0, Math.min(100, Math.round(spPercent)))}%)` : spStatus;
-        if (statusText) {
-            extras.push(`二次修复：${statusText}${rangeCount > 0 ? `，窗口 ${rangeCount}` : ''}`);
-        }
+        const spStatusText = hasPercent ? `${spStatus} (${Math.max(0, Math.min(100, Math.round(spPercent)))}%)` : spStatus;
+        if (spStatusText) extras.push(`${getCurrentLang() === 'zh' ? '二次修复' : 'Second Pass'}：${spStatusText}${rangeCount > 0 ? (getCurrentLang() === 'zh' ? `，窗口 ${rangeCount}` : `, window ${rangeCount}`) : ''}`);
     }
     transcribeLogLine.textContent = extras.join(' ｜ ');
 }
@@ -569,19 +457,17 @@ function computeTranscribePercent(status, progress) {
     return transcribePercentHint;
 }
 
-function statusToChinese(status) {
-    if (status === 'starting') return '排队/启动中';
-    if (status === 'processing') return '处理中';
-    if (status === 'succeeded') return '已完成';
-    if (status === 'failed') return '失败';
-    if (status === 'canceled') return '已取消';
-    return status;
+function statusToLocalized(status) {
+    const key = `status-${status}`;
+    const result = t(key);
+    if (result === key) return status; // fallback if key missing
+    return result;
 }
 
 function finishProcess(output) {
     clearInterval(timerInterval);
-    updateStatus('process', '处理完成！');
-    setTranscribeProgress(100, '转写状态：已完成 (100%)');
+    updateStatus('process', t('status-done'));
+    setTranscribeProgress(100, `${t('transcribe-status').split('：')[0]}：${t('transcribe-finished')} (100%)`);
 
     let mdContent = '';
     let jsonContent = '{}';
@@ -601,12 +487,18 @@ function finishProcess(output) {
     progressArea.classList.add('hidden');
     resultArea.classList.remove('hidden');
 
-    // Show audio playback in result area if we have a recording/file URL
     if (recordPlaybackUrl || lastAudioUrl) {
         resultPlayback.src = recordPlaybackUrl || lastAudioUrl;
-        resultPlayback.classList.remove('hidden');
+        resPlayerUI.classList.remove('hidden');
+        resFill.style.width = '0%';
+        resThumb.style.left = '0%';
+        resCurrentTime.textContent = '0:00';
+        resIconPlay.classList.remove('hidden');
+        resIconPause.classList.add('hidden');
+        resultPlayback.playbackRate = 1;
+        resSpeedBtn.textContent = '1×';
     } else {
-        resultPlayback.classList.add('hidden');
+        resPlayerUI.classList.add('hidden');
     }
 
     running = false;
@@ -629,8 +521,8 @@ function resetRuntimeBox(file) {
     transcribePercentHint = 0;
     taskIdLine.textContent = '';
     transcribeLogLine.textContent = '';
-    setUploadProgress(0, `上传状态：待开始 (${formatBytes(file.size)})`);
-    setTranscribeProgress(0, '转写状态：待开始');
+    setUploadProgress(0, `${t('upload-status')} (${formatBytes(file.size)})`);
+    setTranscribeProgress(0, t('transcribe-status'));
 }
 
 function setUploadProgress(percent, text) {
@@ -641,10 +533,6 @@ function setUploadProgress(percent, text) {
 function setTranscribeProgress(percent, text) {
     transcribeProgressFill.style.width = `${clampPercent(percent)}%`;
     transcribeStatusLine.textContent = text;
-}
-
-function clampPercent(v) {
-    return Math.max(0, Math.min(100, Math.round(v)));
 }
 
 function updateStatus(stepMode, text) {
@@ -668,7 +556,7 @@ function updateStatus(stepMode, text) {
 }
 
 function showError(msg) {
-    errorMessage.textContent = `❌ 错误: ${msg}`;
+    errorMessage.textContent = `错误: ${msg}`;
     errorMessage.classList.remove('hidden');
 }
 
@@ -682,14 +570,19 @@ function resetUI() {
     setControlsDisabled(false);
     selectedFile = null;
     fileInput.value = '';
-    selectedFileName.textContent = '未选择文件';
+    selectedFileName.textContent = t('no-file');
     currentFileBaseName = 'transcript';
     transcriptPreview.textContent = '';
     recordStatus.textContent = '';
-    recordPlayback.classList.add('hidden');
+    cpPlayerUI.classList.add('hidden');
     recordPlayback.src = '';
-    resultPlayback.classList.add('hidden');
+    recordPlayback.playbackRate = 1;
+    cpSpeedBtn.textContent = '1×';
+    resPlayerUI.classList.add('hidden');
     resultPlayback.src = '';
+
+    uploadSection.classList.remove('dimmed');
+    recordSection.classList.remove('dimmed');
     if (recordPlaybackUrl) {
         URL.revokeObjectURL(recordPlaybackUrl);
         recordPlaybackUrl = null;
@@ -701,11 +594,18 @@ function resetUI() {
 }
 
 function setControlsDisabled(disabled) {
-    startBtn.disabled = disabled;
+    startBtn.disabled = disabled || !selectedFile;
     pickFileBtn.disabled = disabled;
     fileInput.disabled = disabled;
-    appKeyInput.disabled = disabled;
-    languageSelect.disabled = disabled;
+    if (disabled) {
+        languageSelectTrigger.classList.add('disabled');
+        languageSelectTrigger.style.opacity = '0.5';
+        languageSelectTrigger.style.pointerEvents = 'none';
+    } else {
+        languageSelectTrigger.classList.remove('disabled');
+        languageSelectTrigger.style.opacity = '1';
+        languageSelectTrigger.style.pointerEvents = 'auto';
+    }
     recordBtn.disabled = disabled;
 }
 
@@ -718,37 +618,143 @@ function startTimer() {
     }, 1000);
 }
 
-function extractFileBaseName(filename) {
-    if (!filename) return 'transcript';
-    const dot = filename.lastIndexOf('.');
-    if (dot <= 0) return filename;
-    return filename.slice(0, dot);
-}
+// --- Initialize App ---
+function initialize() {
+    // App Language Dropdown
+    const appLangTrigger = document.getElementById('app-lang-trigger');
+    const appLangOptions = document.getElementById('app-lang-options');
+    const appLangItems = appLangOptions.querySelectorAll('.dropdown-item');
 
-function hasSupportedExtension(filename) {
-    const lower = filename.toLowerCase();
-    return SUPPORTED_EXTENSIONS.some((ext) => lower.endsWith(ext));
-}
+    updateAppLanguageUI(getCurrentLang());
 
-function formatBytes(bytes) {
-    const units = ['B', 'KB', 'MB', 'GB'];
-    let value = bytes;
-    let i = 0;
-    while (value >= 1024 && i < units.length - 1) {
-        value /= 1024;
-        i += 1;
+    appLangTrigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        appLangOptions.classList.toggle('hidden');
+        languageOptions.classList.add('hidden');
+    });
+
+    appLangItems.forEach(item => {
+        item.addEventListener('click', (e) => {
+            e.stopPropagation();
+            updateAppLanguageUI(item.dataset.value);
+            appLangOptions.classList.add('hidden');
+        });
+    });
+
+    const savedLangPreference = localStorage.getItem('language');
+    if (savedLangPreference) {
+        const item = Array.from(languageItems).find(el => el.dataset.value === savedLangPreference);
+        if (item) {
+            currentTranscriptionLanguage = savedLangPreference;
+            languageSelectLabel.textContent = item.textContent;
+            languageItems.forEach(el => el.classList.remove('active'));
+            item.classList.add('active');
+        }
     }
-    return `${value.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
+
+    languageSelectTrigger.addEventListener('click', (e) => {
+        if (languageSelectTrigger.classList.contains('disabled')) return;
+        e.stopPropagation();
+        languageOptions.classList.toggle('hidden');
+        document.getElementById('app-lang-options').classList.add('hidden');
+    });
+
+    languageItems.forEach(item => {
+        item.addEventListener('click', (e) => {
+            e.stopPropagation();
+            currentTranscriptionLanguage = item.dataset.value;
+            languageSelectLabel.textContent = item.textContent;
+            languageItems.forEach(el => el.classList.remove('active'));
+            item.classList.add('active');
+            languageOptions.classList.add('hidden');
+        });
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!languageSelectTrigger.contains(e.target)) {
+            languageOptions.classList.add('hidden');
+        }
+        if (!appLangTrigger.contains(e.target)) {
+            appLangOptions.classList.add('hidden');
+        }
+    });
+
+    pickFileBtn.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', (e) => {
+        const file = e.target.files && e.target.files[0];
+        updateSelectedFile(file || null);
+    });
+
+    inputArea.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        inputArea.classList.add('dragover');
+    });
+    inputArea.addEventListener('dragleave', () => {
+        inputArea.classList.remove('dragover');
+    });
+    inputArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        inputArea.classList.remove('dragover');
+        const file = e.dataTransfer.files && e.dataTransfer.files[0];
+        updateSelectedFile(file || null);
+    });
+
+    startBtn.addEventListener('click', async () => {
+        await startTranscriptionTask(selectedFile, currentTranscriptionLanguage);
+    });
+
+    newUploadBtn.addEventListener('click', () => {
+        resetUI();
+    });
+
+    removeFileBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        fileInput.value = '';
+        updateSelectedFile(null);
+    });
+
+    removeRecordBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        modalContext = 'remove';
+        modalTitle.textContent = t('record-remove-confirm');
+        confirmOkBtn.textContent = (getCurrentLang() === 'zh' ? '确定移除' : 'Remove');
+        confirmModal.classList.remove('hidden');
+    });
+
+    recordBtn.addEventListener('click', () => {
+        if (recorder.isRecording) {
+            modalContext = 'stop';
+            modalTitle.textContent = t('record-stop-confirm');
+            confirmOkBtn.textContent = t('confirm-ok');
+            confirmModal.classList.remove('hidden');
+        } else {
+            startRecording();
+        }
+    });
+
+    confirmOkBtn.addEventListener('click', () => {
+        confirmModal.classList.add('hidden');
+        if (modalContext === 'stop') {
+            stopRecording();
+        } else if (modalContext === 'remove') {
+            updateSelectedFile(null);
+        }
+    });
+
+    confirmCancelBtn.addEventListener('click', () => {
+        confirmModal.classList.add('hidden');
+    });
+
+    // Close modal on overlay click
+    confirmModal.addEventListener('click', (e) => {
+        if (e.target === confirmModal) {
+            confirmModal.classList.add('hidden');
+        }
+    });
+
+    setupCustomPlayer(recordPlayback, cpPlayBtn, cpIconPlay, cpIconPause, cpCurrentTime, cpDurationTime, cpSpeedBtn, cpTrack, cpFill, cpThumb, cpDownloadBtn);
+    setupCustomPlayer(resultPlayback, resPlayBtn, resIconPlay, resIconPause, resCurrentTime, resDurationTime, resSpeedBtn, resTrack, resFill, resThumb, resDownloadBtn);
 }
 
-function sleep(ms) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function safeJson(res) {
-    try {
-        return await res.json();
-    } catch {
-        return {};
-    }
-}
+// Start the app
+initialize();

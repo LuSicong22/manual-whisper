@@ -146,19 +146,19 @@ function mapUploadError(error) {
         return { status: 402, message: "Replicate 余额不足，请充值后重试" };
     }
     if (status === 413) {
-        return { status: 413, message: "上传文件过大（当前上限约 100MB）" };
+        return { status: 413, message: "传输文件过大（当前上限约 100MB）" };
     }
     if (status === 429) {
-        return { status: 429, message: "上传请求过于频繁，请稍后重试" };
+        return { status: 429, message: "请求过于频繁，请稍后重试" };
     }
     if (status >= 500 && status < 600) {
-        return { status, message: "Replicate 上传服务暂时不可用，请稍后重试" };
+        return { status, message: "AI 处理服务暂时不可用，请稍后重试" };
     }
     if (status >= 400 && status < 600) {
         if (detail) {
-            return { status, message: `上传到 Replicate 失败：${truncateText(detail, 140)}` };
+            return { status, message: `数据处理失败：${truncateText(detail, 140)}` };
         }
-        return { status, message: "上传到 Replicate 失败，请稍后重试" };
+        return { status, message: "数据处理失败，请稍后重试" };
     }
 
     if (detail) {

@@ -233,57 +233,79 @@
                 <div id="transcribe-log-line" class="runtime-muted"></div>
             </div>
         </div>
+
+        </div>
     </main>
 
     <!-- 宏大的结果区域，铺满宽屏 -->
     <div id="result-area" class="hidden wide-result-area">
-        <div class="result-header">
-            <div class="header-main">
-                <h2 class="result-title" data-i18n="result-title">转写完成</h2>
-                <!-- Custom Result Playback Player -->
-                <div id="result-playback-ui" class="custom-player hidden res-player">
-                    <audio id="result-playback"></audio>
-                    <div class="cp-top">
-                        <button class="cp-play-btn" id="res-play-btn" aria-label="播放">
-                            <svg id="res-icon-play" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"
-                                stroke="none">
-                                <polygon points="5,3 19,12 5,21" />
-                            </svg>
-                            <svg id="res-icon-pause" class="hidden" width="18" height="18" viewBox="0 0 24 24"
-                                fill="currentColor" stroke="none">
-                                <rect x="6" y="4" width="4" height="16" />
-                                <rect x="14" y="4" width="4" height="16" />
-                            </svg>
-                        </button>
-                        <div class="cp-time">
-                            <span id="res-current">0:00</span>
-                            <span class="cp-sep">/</span>
-                            <span id="res-duration">0:00</span>
-                        </div>
-                        <button class="cp-speed-btn" id="res-speed-btn">1×</button>
-                        <button class="cp-download-btn" id="res-download-btn" aria-label="下载音频">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                                <polyline points="7 10 12 15 17 10" />
-                                <line x1="12" x2="12" y1="15" y2="3" />
-                            </svg>
-                        </button>
-                    </div>
-                    <div class="cp-progress-track" id="res-track">
-                        <div class="cp-progress-fill" id="res-fill"></div>
-                        <div class="cp-progress-thumb" id="res-thumb"></div>
-                    </div>
+        <div class="split-result-container">
+            <!-- 左侧：转写文字 -->
+            <div class="result-left-column">
+                <div class="preview-box glass-panel wide-preview-inner">
+                    <div id="transcript-preview"></div>
                 </div>
             </div>
-            <div class="actions">
-                <button id="download-md" class="btn primary" data-i18n="btn-md">下载 Markdown</button>
-                <button id="download-json" class="btn secondary" data-i18n="btn-json">下载 JSON</button>
-                <button id="new-upload-btn" class="btn outline" data-i18n="btn-new">开始新转写</button>
-            </div>
-        </div>
-        <div class="preview-box glass-panel wide-preview-inner">
-            <div id="transcript-preview"></div>
+
+            <!-- 右侧：固定操作栏 -->
+            <aside class="result-right-sidebar">
+                <div class="result-sidebar-sticky">
+                    <div class="header-main">
+                        <h2 class="result-title" data-i18n="result-title">转写完成</h2>
+                        <div id="result-meta" class="result-meta"></div>
+                    </div>
+
+                    <!-- Custom Result Playback Player -->
+                    <div id="result-playback-ui" class="custom-player hidden res-player">
+                        <audio id="result-playback"></audio>
+                        <div class="cp-top">
+                            <button class="cp-play-btn" id="res-play-btn" aria-label="播放">
+                                <svg id="res-icon-play" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"
+                                    stroke="none">
+                                    <polygon points="5,3 19,12 5,21" />
+                                </svg>
+                                <svg id="res-icon-pause" class="hidden" width="18" height="18" viewBox="0 0 24 24"
+                                    fill="currentColor" stroke="none">
+                                    <rect x="6" y="4" width="4" height="16" />
+                                    <rect x="14" y="4" width="4" height="16" />
+                                </svg>
+                            </button>
+                            <div class="cp-time">
+                                <span id="res-current">0:00</span>
+                                <span class="cp-sep">/</span>
+                                <span id="res-duration">0:00</span>
+                            </div>
+                            <button class="cp-speed-btn" id="res-speed-btn">1×</button>
+                            <button class="cp-download-btn" id="res-download-btn" aria-label="下载音频">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                    <polyline points="7 10 12 15 17 10" />
+                                    <line x1="12" x2="12" y1="15" y2="3" />
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="cp-progress-track" id="res-track">
+                            <div class="cp-progress-fill" id="res-fill"></div>
+                            <div class="cp-progress-thumb" id="res-thumb"></div>
+                        </div>
+                    </div>
+
+                    <div class="actions-stack">
+                        <button id="copy-transcript" class="btn secondary wide-btn" title="复制文字稿">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                            </svg>
+                            <span data-i18n="btn-copy">复制文字</span>
+                        </button>
+                        <button id="download-md" class="btn primary wide-btn" data-i18n="btn-md">下载 Markdown</button>
+                        <button id="download-json" class="btn secondary wide-btn" data-i18n="btn-json">下载 JSON</button>
+                        <button id="new-upload-btn" class="btn outline wide-btn" data-i18n="btn-new">开始新转写</button>
+                    </div>
+                </div>
+            </aside>
         </div>
     </div>
 

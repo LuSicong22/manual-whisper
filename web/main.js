@@ -25,7 +25,9 @@ const timerDisplay = document.getElementById('timer');
 const transcriptPreview = document.getElementById('transcript-preview');
 const downloadMdBtn = document.getElementById('download-md');
 const downloadJsonBtn = document.getElementById('download-json');
+const copyTranscriptBtn = document.getElementById('copy-transcript');
 const newUploadBtn = document.getElementById('new-upload-btn');
+const resultMeta = document.getElementById('result-meta');
 const errorMessage = document.getElementById('error-message');
 const uploadStatusLine = document.getElementById('upload-status-line');
 const transcribeStatusLine = document.getElementById('transcribe-status-line');
@@ -484,8 +486,38 @@ function finishProcess(output) {
     setupDownload(downloadMdBtn, mdContent, `${currentFileBaseName}_transcript.md`, 'text/markdown');
     setupDownload(downloadJsonBtn, jsonContent, `${currentFileBaseName}_transcript.json`, 'application/json');
 
-    progressArea.classList.add('hidden');
+    inputArea.parentNode.classList.add('hidden');
     resultArea.classList.remove('hidden');
+
+    if (selectedFile) {
+        resultMeta.textContent = `${selectedFile.name} (${formatBytes(selectedFile.size)})`;
+    } else {
+        resultMeta.textContent = '';
+    }
+
+    if (copyTranscriptBtn) {
+        copyTranscriptBtn.onclick = async () => {
+            try {
+                await navigator.clipboard.writeText(mdContent);
+                const originalHtml = copyTranscriptBtn.innerHTML;
+                copyTranscriptBtn.innerHTML = `
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                    <span>${getCurrentLang() === 'zh' ? '已复制' : 'Copied'}</span>
+                `;
+                copyTranscriptBtn.classList.remove('secondary');
+                copyTranscriptBtn.classList.add('primary');
+                setTimeout(() => {
+                    copyTranscriptBtn.innerHTML = originalHtml;
+                    copyTranscriptBtn.classList.remove('primary');
+                    copyTranscriptBtn.classList.add('secondary');
+                }, 2000);
+            } catch (err) {
+                console.error('Failed to copy text: ', err);
+            }
+        };
+    }
 
     if (recordPlaybackUrl || lastAudioUrl) {
         resultPlayback.src = recordPlaybackUrl || lastAudioUrl;
@@ -562,6 +594,7 @@ function showError(msg) {
 
 function resetUI() {
     clearInterval(timerInterval);
+    inputArea.parentNode.classList.remove('hidden');
     inputArea.classList.remove('hidden');
     progressArea.classList.add('hidden');
     resultArea.classList.add('hidden');

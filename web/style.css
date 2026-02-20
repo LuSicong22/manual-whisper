@@ -85,6 +85,35 @@ p {
   color: var(--text-muted);
 }
 
+.select-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  text-align: left;
+}
+
+.select-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  font-size: 0.95rem;
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%239ca3af' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+}
+
+.select-input option {
+  background: #1e1b4b;
+  color: var(--text);
+}
+
 .file-name {
   margin: 10px 0 0;
   font-size: 0.9rem;
@@ -107,10 +136,12 @@ p {
 .step {
   color: var(--text-muted);
 }
+
 .step.active {
   color: var(--primary);
   font-weight: bold;
 }
+
 .step.completed {
   color: var(--success);
 }
@@ -158,8 +189,13 @@ p {
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 /* Results */
@@ -183,6 +219,7 @@ p {
   background: var(--primary);
   color: white;
 }
+
 .btn.primary:hover {
   background: var(--primary-hover);
 }
@@ -192,8 +229,21 @@ p {
   border: 1px solid var(--border);
   color: var(--text);
 }
+
 .btn.secondary:hover {
   background: rgba(255, 255, 255, 0.1);
+}
+
+.btn.outline {
+  background: transparent;
+  border: 1px dashed var(--primary);
+  color: var(--primary);
+  transition: all 0.2s ease;
+}
+
+.btn.outline:hover {
+  background: rgba(99, 102, 241, 0.15);
+  border-style: solid;
 }
 
 .preview-box {

@@ -3,6 +3,7 @@ const fileInput = document.getElementById('file-input');
 const pickFileBtn = document.getElementById('pick-file-btn');
 const selectedFileName = document.getElementById('selected-file-name');
 const appKeyInput = document.getElementById('app-key-input');
+const languageSelect = document.getElementById('language-select');
 const startBtn = document.getElementById('start-btn');
 const progressArea = document.getElementById('progress-area');
 const resultArea = document.getElementById('result-area');
@@ -11,6 +12,7 @@ const timerDisplay = document.getElementById('timer');
 const transcriptPreview = document.getElementById('transcript-preview');
 const downloadMdBtn = document.getElementById('download-md');
 const downloadJsonBtn = document.getElementById('download-json');
+const newUploadBtn = document.getElementById('new-upload-btn');
 const errorMessage = document.getElementById('error-message');
 const uploadStatusLine = document.getElementById('upload-status-line');
 const transcribeStatusLine = document.getElementById('transcribe-status-line');
@@ -38,6 +40,11 @@ function initialize() {
     const savedKey = localStorage.getItem('appKey') || '';
     appKeyInput.value = savedKey;
 
+    const savedLang = localStorage.getItem('language');
+    if (savedLang && [...languageSelect.options].some(o => o.value === savedLang)) {
+        languageSelect.value = savedLang;
+    }
+
     pickFileBtn.addEventListener('click', () => fileInput.click());
     fileInput.addEventListener('change', (e) => {
         const file = e.target.files && e.target.files[0];
@@ -60,15 +67,21 @@ function initialize() {
 
     startBtn.addEventListener('click', async () => {
         const appKey = appKeyInput.value.trim();
-        await startTranscription(selectedFile, appKey);
+        const language = languageSelect.value;
+        await startTranscription(selectedFile, appKey, language);
     });
 
     appKeyInput.addEventListener('keydown', async (e) => {
         if (e.key === 'Enter') {
             e.preventDefault();
             const appKey = appKeyInput.value.trim();
-            await startTranscription(selectedFile, appKey);
+            const language = languageSelect.value;
+            await startTranscription(selectedFile, appKey, language);
         }
+    });
+
+    newUploadBtn.addEventListener('click', () => {
+        resetUI();
     });
 }
 
@@ -83,7 +96,7 @@ function updateSelectedFile(file) {
     currentFileBaseName = extractFileBaseName(file.name);
 }
 
-async function startTranscription(file, appKey) {
+async function startTranscription(file, appKey, language) {
     if (running) return;
 
     if (!file) {
@@ -108,6 +121,7 @@ async function startTranscription(file, appKey) {
     } else {
         localStorage.removeItem('appKey');
     }
+    localStorage.setItem('language', language);
     running = true;
     setControlsDisabled(true);
 
@@ -142,7 +156,8 @@ async function startTranscription(file, appKey) {
             headers: transcribeHeaders,
             body: JSON.stringify({
                 fileUrl,
-                sourceFilename: file.name
+                sourceFilename: file.name,
+                language: language || 'zh+en'
             })
         });
 
@@ -439,8 +454,15 @@ function resetUI() {
     clearInterval(timerInterval);
     inputArea.classList.remove('hidden');
     progressArea.classList.add('hidden');
+    resultArea.classList.add('hidden');
+    errorMessage.classList.add('hidden');
     running = false;
     setControlsDisabled(false);
+    selectedFile = null;
+    fileInput.value = '';
+    selectedFileName.textContent = '未选择文件';
+    currentFileBaseName = 'transcript';
+    transcriptPreview.textContent = '';
 }
 
 function setControlsDisabled(disabled) {
@@ -448,6 +470,7 @@ function setControlsDisabled(disabled) {
     pickFileBtn.disabled = disabled;
     fileInput.disabled = disabled;
     appKeyInput.disabled = disabled;
+    languageSelect.disabled = disabled;
 }
 
 function startTimer() {

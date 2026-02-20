@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,6 +8,7 @@
     <link rel="stylesheet" href="style.css">
     <link rel="icon" href="https://fav.farm/🎙️">
 </head>
+
 <body>
     <div class="container">
         <header>
@@ -24,12 +26,15 @@
                 </div>
 
                 <div class="form-row">
-                    <input
-                        type="password"
-                        id="app-key-input"
-                        placeholder="访问密钥（可选）"
-                        autocomplete="off"
-                    />
+                    <input type="password" id="app-key-input" placeholder="访问密钥（可选）" autocomplete="off" />
+                </div>
+                <div class="form-row">
+                    <label for="language-select" class="select-label">识别语言</label>
+                    <select id="language-select" class="select-input">
+                        <option value="zh">中文（推荐纯中文录音）</option>
+                        <option value="en">English（推荐纯英文录音）</option>
+                        <option value="zh+en" selected>中英混合（推荐中英对话）</option>
+                    </select>
                 </div>
                 <div class="form-row">
                     <input type="file" id="file-input" accept=".m4a,.mp3,.wav,.flac,.ogg,.wma,.webm,.aac" hidden />
@@ -70,6 +75,9 @@
                     <button id="download-md" class="btn primary">📥 下载 Markdown</button>
                     <button id="download-json" class="btn secondary">📥 下载 JSON</button>
                 </div>
+                <div class="actions">
+                    <button id="new-upload-btn" class="btn outline">🔄 上传新录音</button>
+                </div>
                 <div class="preview-box">
                     <h3>转写预览</h3>
                     <div id="transcript-preview"></div>
@@ -86,4 +94,5 @@
     </div>
     <script src="main.js"></script>
 </body>
+
 </html>

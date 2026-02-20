@@ -9,6 +9,8 @@ const REPLICATE_MODEL = getEnv("REPLICATE_MODEL") || "victor-upmeet/whisperx";
 const REPLICATE_MODEL_VERSION = getEnv("REPLICATE_MODEL_VERSION");
 const HF_TOKEN = getEnv("HF_TOKEN");
 const ENFORCE_APP_SHARED_KEY = parseBoolean(getEnv("ENFORCE_APP_SHARED_KEY"), false);
+const LANGUAGE = (getEnv("LANGUAGE") || "").trim() || null; // null = use request language
+const VALID_LANGUAGES = new Set(["zh", "en", "zh+en"]);
 const DOMAIN_TERMS = (getEnv("DOMAIN_TERMS") || "微信,支付宝,二维码,收款码,小程序,公众号,NFC,Node ID,UID,UIA,ADNA,APP,H5")
     .split(",")
     .map((s) => s.trim())
@@ -253,6 +255,10 @@ export default async function handler(request, response) {
         try {
             const fileUrl = body && typeof body === "object" ? body.fileUrl : undefined;
             const sourceFilename = body && typeof body === "object" ? body.sourceFilename : undefined;
+            const reqLanguage = body && typeof body === "object" ? body.language : undefined;
+
+            // Resolve language: env var overrides request; validate input
+            const language = LANGUAGE || (typeof reqLanguage === "string" && VALID_LANGUAGES.has(reqLanguage) ? reqLanguage : "zh");
 
             if (!fileUrl) return response.status(400).json({ error: "Missing fileUrl" });
             const validationError = validateFileUrl(fileUrl, sourceFilename);
@@ -263,10 +269,10 @@ export default async function handler(request, response) {
             const version = await resolveModelVersion();
             const prediction = await replicate.predictions.create({
                 version,
-                input: buildTranscribeInput(fileUrl),
+                input: buildTranscribeInput(fileUrl, language),
             });
 
-            trackNewJob(clientIp, prediction.id);
+            trackNewJob(clientIp, prediction.id, language);
 
             return response.status(201).json({
                 id: prediction.id,
@@ -312,12 +318,12 @@ async function resolveModelVersion() {
     return cachedResolvedVersion;
 }
 
-function buildTranscribeInput(fileUrl) {
+function buildTranscribeInput(fileUrl, language) {
     const diarizationEnabled = parseBoolean(getEnv("ENABLE_DIARIZATION"), Boolean(HF_TOKEN));
+    const isMixed = language === "zh+en";
 
     const input = {
         audio_file: fileUrl,
-        language: "zh",
         batch_size: 16,
         temperature: TEMPERATURE,
         vad_onset: VAD_OPTIONS.vad_onset,
@@ -326,7 +332,16 @@ function buildTranscribeInput(fileUrl) {
         diarization: diarizationEnabled,
     };
 
-    if (INITIAL_PROMPT) {
+    // Always set language explicitly to prevent Whisper misdetection (e.g. Korean).
+    // For mixed mode, we set "zh" as the base language but use a bilingual initial
+    // prompt containing English words — Whisper uses the prompt as a style guide and
+    // will preserve English words when it sees English in the prompt context.
+    input.language = (isMixed ? "zh" : language) || "zh";
+
+    // For mixed mode, use a bilingual initial prompt to encourage code-switching.
+    if (isMixed) {
+        input.initial_prompt = INITIAL_PROMPT || "这是一段中英文混合的meeting录音。Please保留说话者使用的original language，English部分保持英文，中文部分保持中文。";
+    } else if (INITIAL_PROMPT) {
         input.initial_prompt = INITIAL_PROMPT;
     }
 
@@ -719,9 +734,12 @@ async function maybeResolveSecondPass({ clientIp, primaryPrediction, primaryOutp
 
         try {
             const version = await resolveModelVersion();
+            // Retrieve the language used for the primary prediction
+            const primaryOwner = globalState.jobOwners.get(primaryId);
+            const jobLanguage = primaryOwner?.language || "zh";
             const secondPrediction = await replicate.predictions.create({
                 version,
-                input: buildSecondPassInput(audioFileUrl),
+                input: buildSecondPassInput(audioFileUrl, jobLanguage),
             });
 
             trackNewJob(clientIp, secondPrediction.id);
@@ -935,11 +953,11 @@ function normalizeSecondPassRange(item, index) {
     };
 }
 
-function buildSecondPassInput(fileUrl) {
+function buildSecondPassInput(fileUrl, language) {
     const diarizationEnabled = SECOND_PASS_DIARIZATION && Boolean(HF_TOKEN);
+    const isMixed = language === "zh+en";
     const input = {
         audio_file: fileUrl,
-        language: "zh",
         batch_size: SECOND_PASS_BATCH_SIZE,
         temperature: SECOND_PASS_TEMPERATURE,
         vad_onset: SECOND_PASS_VAD_ONSET,
@@ -948,7 +966,17 @@ function buildSecondPassInput(fileUrl) {
         diarization: diarizationEnabled,
     };
 
-    if (SECOND_PASS_USE_INITIAL_PROMPT && INITIAL_PROMPT) {
+    if (!isMixed) {
+        input.language = language || "zh";
+    } else {
+        input.language = "zh";
+    }
+
+    if (isMixed) {
+        if (SECOND_PASS_USE_INITIAL_PROMPT) {
+            input.initial_prompt = INITIAL_PROMPT || "这是一段中英文混合的meeting录音。Please保留说话者使用的original language，English部分保持英文，中文部分保持中文。";
+        }
+    } else if (SECOND_PASS_USE_INITIAL_PROMPT && INITIAL_PROMPT) {
         input.initial_prompt = INITIAL_PROMPT;
     }
     if (diarizationEnabled && HF_TOKEN) {
@@ -1342,8 +1370,8 @@ function checkRateLimit(ip, bucket, limit) {
     return { ok: true };
 }
 
-function trackNewJob(ip, predictionId) {
-    globalState.jobOwners.set(predictionId, { ip, createdAt: Date.now() });
+function trackNewJob(ip, predictionId, language) {
+    globalState.jobOwners.set(predictionId, { ip, createdAt: Date.now(), language: language || "zh" });
     const jobs = globalState.activeJobsByIp.get(ip) || new Set();
     jobs.add(predictionId);
     globalState.activeJobsByIp.set(ip, jobs);

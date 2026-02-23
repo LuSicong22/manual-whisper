@@ -2,7 +2,7 @@
 
 # 🎙️ FlashNotes
 
-**[English](#english) | [🇨🇳 中文](#中文)**
+**[English](#english) | [中文](#中文)**
 
 High-precision, privacy-friendly audio transcription tool. Powered by WhisperX and Replicate, featuring speaker diarization, hallucination filtering, and automated quality repair.
 
@@ -12,7 +12,7 @@ High-precision, privacy-friendly audio transcription tool. Powered by WhisperX a
 
 <br>
 
-<h2 id="english">🇬🇧 English</h2>
+<h2 id="english">English</h2>
 
 ## 🌟 Core Features
 
@@ -65,7 +65,7 @@ You're all set! You can now access your free transcription service via your Fire
 
 <br>
 
-<h2 id="中文">🇨🇳 中文</h2>
+<h2 id="中文">中文</h2>
 
 ## 🌟 核心特性
 

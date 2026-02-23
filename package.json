@@ -3,12 +3,9 @@
     "version": "1.0.0",
     "type": "module",
     "scripts": {
-        "start": "firebase emulators:start"
+        "start": "vercel dev"
     },
     "dependencies": {
         "replicate": "^1.4.0"
-    },
-    "devDependencies": {
-        "ts-node": "^10.9.2"
     }
 }

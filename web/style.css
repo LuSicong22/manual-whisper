@@ -131,6 +131,46 @@ body {
   max-width: 1400px;
 }
 
+.nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.nav-github-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  background: rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid var(--glass-border);
+  border-radius: 99px;
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 0.95rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.nav-github-link:hover {
+  background: rgba(255, 255, 255, 0.9);
+  border-color: var(--primary);
+  color: var(--primary);
+  transform: translateY(-1px);
+}
+
+@media (max-width: 640px) {
+  .nav-github-text {
+    display: none;
+  }
+
+  .nav-github-link {
+    padding: 8px;
+  }
+}
+
 .logo-wrapper {
   display: flex;
   align-items: center;

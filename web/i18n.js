@@ -51,6 +51,8 @@ export const appI18n = {
         'record-remove-confirm': '确认移除这段录音吗？',
         'btn-cancel': '取消',
         'confirm-ok': '确定结束',
+        'nav-github': '开源项目',
+        'open-source-hint': '代码完全开源，支持私人部署以确保 100% 隐私',
     },
     en: {
         'app-title': 'FlashNotes',
@@ -100,6 +102,8 @@ export const appI18n = {
         'record-remove-confirm': 'Are you sure you want to remove this recording?',
         'btn-cancel': 'Cancel',
         'confirm-ok': 'Stop Recording',
+        'nav-github': 'Open Source',
+        'open-source-hint': 'Fully open source. Support self-hosting for 100% privacy.',
     }
 };
 

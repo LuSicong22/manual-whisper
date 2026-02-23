@@ -1,5 +1,6 @@
 {
     "hosting": {
+        "target": "flashnotes",
         "public": ".",
         "ignore": [
             "firebase.json",

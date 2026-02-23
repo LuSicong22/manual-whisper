@@ -6,6 +6,8 @@
 const ALLOWED_ORIGINS = new Set([
     "https://manual-whisper-test.web.app",
     "https://manual-whisper-test.firebaseapp.com",
+    "https://flashnotes-2026.web.app",
+    "https://flashnotes-2026.firebaseapp.com",
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "http://localhost:5000",

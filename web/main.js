@@ -634,8 +634,33 @@ function resetUI() {
     resPlayerUI.classList.add('hidden');
     resultPlayback.src = '';
 
-    uploadSection.classList.remove('dimmed');
-    recordSection.classList.remove('dimmed');
+    // 还原上传区与录音区的完整初始可见状态
+    uploadSection.classList.remove('dimmed', 'hidden');
+    recordSection.classList.remove('dimmed', 'hidden');
+
+    const splitDivider = document.querySelector('.split-divider');
+    if (splitDivider) splitDivider.classList.remove('hidden');
+
+    // 还原录音按钮与标签
+    recordBtn.classList.remove('hidden', 'recording');
+    const recordLabel = document.getElementById('record-label');
+    if (recordLabel) {
+        recordLabel.classList.remove('hidden');
+        recordLabel.textContent = t('record-start');
+    }
+    document.getElementById('record-svg-mic').classList.remove('hidden');
+    document.getElementById('record-svg-stop').classList.add('hidden');
+    volumeMeter.classList.add('hidden');
+
+    // 隐藏录音/上传信息栏及移除按钮
+    if (fileInfoBar) fileInfoBar.classList.add('hidden');
+    if (recordInfoBar) recordInfoBar.classList.add('hidden');
+    if (removeRecordBtn) removeRecordBtn.classList.add('hidden');
+
+    // 隐藏 action-wrapper（无文件时不显示语言选择和开始按钮）
+    const actionWrapper = document.getElementById('action-wrapper');
+    if (actionWrapper) actionWrapper.classList.add('hidden');
+
     if (recordPlaybackUrl) {
         URL.revokeObjectURL(recordPlaybackUrl);
         recordPlaybackUrl = null;

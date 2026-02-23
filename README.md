@@ -1,6 +1,71 @@
+<div align="center">
+
 # 🎙️ FlashNotes
 
-高精度、隐私友好的中文录音转写工具。基于 WhisperX 和 Replicate，支持说话人分离、幻觉去重与自动化质量修复。
+**[English](#english) | [🇨🇳 中文](#中文)**
+
+High-precision, privacy-friendly audio transcription tool. Powered by WhisperX and Replicate, featuring speaker diarization, hallucination filtering, and automated quality repair.
+
+</div>
+
+---
+
+<br>
+
+<h2 id="english">🇬🇧 English</h2>
+
+## 🌟 Core Features
+
+- **High-Precision Transcription**: Uses the WhisperX `large-v3` model, optimized for meetings and multi-speaker discussions.
+- **Speaker Diarization**: Automatically identifies and labels different speakers.
+- **Quality Repair**: Built-in hallucination cleaning, repetitive phrase deduplication, and prompt leakage filtering.
+- **Privacy Protection**: Audio is only sent to dedicated cloud GPUs during transcription and is never persistently stored.
+
+## 🚀 Quick Start
+
+### 1. Install Dependencies
+```bash
+npm install
+```
+
+### 2. Set Environment Variables
+Create a `.env.local` file and add your Replicate token:
+```
+REPLICATE_API_TOKEN=YOUR_TOKEN_HERE
+```
+
+### 3. Run Locally
+```bash
+# Requires Vercel CLI: npm i -g vercel
+vercel dev
+```
+
+## 🌐 Recommended Deployment (Hybrid)
+
+To get a beautiful `.web.app` custom domain while enjoying free backend resources from Vercel, we recommend a hybrid deployment:
+
+### Step 1: Deploy Backend to Vercel
+1. Run in your project directory: `vercel --prod`
+2. Follow the prompts and save the generated Vercel domain (e.g., `https://your-proj.vercel.app`).
+3. Set your `REPLICATE_API_TOKEN` environment variable in the Vercel dashboard.
+
+### Step 2: Deploy Frontend to Firebase
+1. Open `apiService.js` in the root directory.
+2. Update the `VERCEL_API_BASE` variable with your new Vercel domain:
+   ```javascript
+   const VERCEL_API_BASE = 'https://your-proj.vercel.app';
+   ```
+3. Run in your project directory: `firebase deploy --only hosting`
+
+You're all set! You can now access your free transcription service via your Firebase domain.
+
+<br>
+
+---
+
+<br>
+
+<h2 id="中文">🇨🇳 中文</h2>
 
 ## 🌟 核心特性
 
@@ -46,6 +111,8 @@ vercel dev
 3. 在项目目录执行：`firebase deploy --only hosting`
 
 一切就绪！你现在可以通过 Firebase 域名访问完全免费的转写服务。
+
+---
 
 ## 📄 License
 MIT

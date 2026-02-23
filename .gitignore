@@ -1,25 +1,24 @@
-# 环境配置（含 Token）
-.env
+# Ignore everything in the root
+/*
 
-# 音频文件（太大不适合上传）
-*.m4a
-*.mp3
-*.wav
-*.flac
-*.ogg
-*.wma
+# 1. Allow .gitignore and essential root setup files (optional)
+# /.gitignore
+# /README.md  # We will keep the root README but maybe hide it? 
+# User said "flashnotes以外的文件不出现在 github"
+# So we only unignore flashnotes.
 
-# 转写输出
-*_transcript.md
-*_transcript.json
+# 2. Allow flashnotes directory
+!/flashnotes/
+!/flashnotes/**
 
-# Python
-__pycache__/
-*.pyc
-*.pyo
-.venv/
-venv/
+# 3. Allow current .gitignore itself so the rules are tracked
+!/.gitignore
 
-# macOS
-.DS_Store
-reference
+# --- Rules for inside flashnotes (moved from flashnotes/.gitignore) ---
+/flashnotes/node_modules
+/flashnotes/.vercel
+/flashnotes/.env.local
+/flashnotes/.firebase
+/flashnotes/firebase-debug.log
+/flashnotes/dist
+/flashnotes/.DS_Store

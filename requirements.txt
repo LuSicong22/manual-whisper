@@ -1,5 +1,0 @@
-whisperx
-torch
-torchaudio
-pyannote.audio
-python-dotenv

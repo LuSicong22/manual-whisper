@@ -13,6 +13,9 @@ import {
 } from "./lib/replicateClient.js";
 import { postProcessSegments, formatToMarkdown } from "./lib/processor.js";
 import { getEnv } from "./_localEnv.js";
+import admin from "firebase-admin";
+
+const db = admin.firestore();
 
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const POST_RATE_LIMIT_PER_MIN = Number(getEnv("POST_RATE_LIMIT_PER_MIN") || 6);
@@ -31,7 +34,6 @@ const globalState = globalThis.__transcribeState || {
     jobOwners: new Map(), // predictionId -> { ip, createdAt, language }
     activeJobsByIp: new Map(), // ip -> Set(predictionId)
     secondPassByPrimary: new Map(), // primaryPredictionId -> second-pass state
-    weeklyUsage: new Map(), // ip -> { windowStart, totalDurationSec }
 };
 globalThis.__transcribeState = globalState;
 
@@ -64,16 +66,16 @@ async function handleGet(clientIp, query, response) {
     if (!getRate.ok) return response.status(429).json({ error: "Too many polling requests. Slow down and retry." });
 
     if (query.action === "quota") {
-        let usage = globalState.weeklyUsage.get(clientIp);
-        const now = Date.now();
-        const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
-        if (!usage || now - usage.windowStart > WEEK_MS) {
-            usage = { windowStart: now, totalDurationSec: 0 };
+        try {
+            const usage = await getWeeklyUsageFromFirestore(clientIp);
+            return response.status(200).json({
+                used: usage.totalDurationSec,
+                limit: MAX_WEEKLY_DURATION_SEC
+            });
+        } catch (e) {
+            console.error("Failed to fetch quota from Firestore:", e);
+            return response.status(500).json({ error: "Failed to fetch quota" });
         }
-        return response.status(200).json({
-            used: usage.totalDurationSec,
-            limit: MAX_WEEKLY_DURATION_SEC
-        });
     }
 
     const { id } = query;
@@ -155,20 +157,17 @@ async function handlePost(clientIp, body, response) {
                 return response.status(400).json({ error: `Audio length exceeds limit (max ${MAX_FILE_DURATION_SEC / 60} mins).` });
             }
 
-            let usage = globalState.weeklyUsage.get(clientIp);
-            const now = Date.now();
-            const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
-            if (!usage || now - usage.windowStart > WEEK_MS) {
-                usage = { windowStart: now, totalDurationSec: 0 };
-            }
+            const usage = await getWeeklyUsageFromFirestore(clientIp);
 
             if (usage.totalDurationSec + duration > MAX_WEEKLY_DURATION_SEC) {
                 return response.status(429).json({ error: `Weekly duration quota exceeded. Limit is ${MAX_WEEKLY_DURATION_SEC / 60 / 60} hours/week.` });
             }
 
-            // Optimistically add duration
-            usage.totalDurationSec += duration;
-            globalState.weeklyUsage.set(clientIp, usage);
+            // Record duration in Firestore
+            await usage.docRef.set({
+                windowStart: usage.windowStart,
+                totalDurationSec: usage.totalDurationSec + duration
+            });
         }
 
         if (!fileUrl) return response.status(400).json({ error: "Missing fileUrl" });
@@ -206,12 +205,6 @@ function pruneState() {
             if (active) active.delete(id);
             globalState.jobOwners.delete(id);
             globalState.secondPassByPrimary.delete(id);
-        }
-    }
-    const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
-    for (const [ip, usage] of globalState.weeklyUsage.entries()) {
-        if (now - usage.windowStart > WEEK_MS) {
-            globalState.weeklyUsage.delete(ip);
         }
     }
 }
@@ -295,4 +288,23 @@ function parseBoolean(raw, fallback) {
     if (typeof raw !== "string") return fallback;
     const v = raw.trim().toLowerCase();
     return (v === "1" || v === "true" || v === "yes" || v === "on") ? true : (v === "0" || v === "false" || v === "no" || v === "off") ? false : fallback;
+}
+
+// Helper to interact with Firestore for Quotas
+async function getWeeklyUsageFromFirestore(ip) {
+    const docId = ip.replace(/[:.]/g, '_');
+    const docRef = db.collection('quotas').doc(docId);
+    const docSnap = await docRef.get();
+
+    const now = Date.now();
+    const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+    if (docSnap.exists) {
+        const data = docSnap.data();
+        if (now - data.windowStart <= WEEK_MS) {
+            return { docRef, windowStart: data.windowStart, totalDurationSec: data.totalDurationSec || 0 };
+        }
+    }
+    // Expired or entirely new IP
+    return { docRef, windowStart: now, totalDurationSec: 0 };
 }

@@ -1,8 +1,10 @@
 import { onRequest } from "firebase-functions/v2/https";
 import express from "express";
+import admin from "firebase-admin";
 import uploadHandler from "./routes/upload.js";
 import transcribeHandler from "./routes/transcribe.js";
 
+admin.initializeApp();
 const app = express();
 
 // Firebase Functions always parses the request body.

@@ -1185,7 +1185,7 @@ audio {
 }
 
 .res-player .cp-top {
-  margin-bottom: 0;
+  margin-bottom: 32px !important;
   gap: 16px;
 }
 
@@ -1198,7 +1198,7 @@ audio {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 12px;
+  margin-bottom: 16px;
 }
 
 .cp-play-btn {
@@ -1274,6 +1274,7 @@ audio {
   border-radius: 4px;
   position: relative;
   cursor: pointer;
+  margin-top: 16px;
 }
 
 .cp-progress-fill {

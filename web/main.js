@@ -214,6 +214,10 @@ function updateSelectedFile(file, source = 'upload') {
         recordSection.classList.remove('dimmed', 'hidden');
         uploadSection.classList.remove('dimmed', 'hidden');
         if (splitDivider) splitDivider.classList.remove('hidden');
+
+        recordBtn.classList.remove('hidden');
+        document.getElementById('record-label').classList.remove('hidden');
+
         startBtn.disabled = true;
         cpPlayerUI.classList.add('hidden');
         if (recordPlaybackUrl) {
@@ -237,8 +241,13 @@ function updateSelectedFile(file, source = 'upload') {
         if (fileInfoBar) fileInfoBar.classList.add('hidden');
         if (recordInfoBar) recordInfoBar.classList.remove('hidden');
         if (removeRecordBtn) removeRecordBtn.classList.remove('hidden'); // Show remove button when done
-        uploadSection.classList.add('dimmed');
+
+        uploadSection.classList.add('hidden');
+        if (splitDivider) splitDivider.classList.add('hidden');
         recordSection.classList.remove('dimmed');
+
+        recordBtn.classList.add('hidden');
+        document.getElementById('record-label').classList.add('hidden');
     }
 
     currentFileBaseName = extractFileBaseName(file.name);

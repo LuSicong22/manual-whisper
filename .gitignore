@@ -1,24 +1,32 @@
-# Ignore everything in the root
-/*
+# --- Root-level CLI files (Hidden from GitHub) ---
+transcribe.py
+requirements.txt
+.env
+.env.vercel_backup
+.env.local
+venv/
+.venv/
+__pycache__/
+reference/
 
-# 1. Allow .gitignore and essential root setup files (optional)
-# /.gitignore
-# /README.md  # We will keep the root README but maybe hide it? 
-# User said "flashnotes以外的文件不出现在 github"
-# So we only unignore flashnotes.
+# --- Audio Files (Local only) ---
+*.m4a
+*.mp3
+*.wav
+*.flac
+*.ogg
+*.wma
 
-# 2. Allow flashnotes directory
-!/flashnotes/
-!/flashnotes/**
+# --- Transcription Outputs (Local only) ---
+*_transcript.md
+*_transcript.json
 
-# 3. Allow current .gitignore itself so the rules are tracked
-!/.gitignore
+# --- Web App Build & Environment ---
+node_modules/
+.vercel/
+.firebase/
+firebase-debug.log
+dist/
 
-# --- Rules for inside flashnotes (moved from flashnotes/.gitignore) ---
-/flashnotes/node_modules
-/flashnotes/.vercel
-/flashnotes/.env.local
-/flashnotes/.firebase
-/flashnotes/firebase-debug.log
-/flashnotes/dist
-/flashnotes/.DS_Store
+# --- OS Files ---
+.DS_Store

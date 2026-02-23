@@ -7,10 +7,16 @@ const POLL_TIMEOUT_MS = 30 * 60 * 1000;
 const INITIAL_POLL_INTERVAL_MS = 3000;
 const MAX_POLL_INTERVAL_MS = 10000;
 
+// When hosted on Firebase (web.app domain), route API calls to Vercel.
+// In local dev (vercel dev / firebase emulators), use relative paths.
+const VERCEL_API_BASE = typeof window !== 'undefined' && window.location.hostname.endsWith('.web.app')
+    ? 'https://whisper-omega.vercel.app'
+    : '';
+
 export async function uploadFile(file, onProgress) {
     return new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
-        xhr.open('POST', '/api/upload');
+        xhr.open('POST', `${VERCEL_API_BASE}/api/upload`);
         xhr.responseType = 'json';
         xhr.setRequestHeader('x-file-name', encodeURIComponent(file.name));
         xhr.setRequestHeader('x-file-content-type', file.type || 'application/octet-stream');
@@ -55,7 +61,7 @@ export async function uploadFile(file, onProgress) {
 }
 
 export async function createTranscription(fileUrl, sourceFilename, language, durationSec, adminSecret) {
-    const res = await fetch('/api/transcribe', {
+    const res = await fetch(`${VERCEL_API_BASE}/api/transcribe`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
@@ -86,7 +92,7 @@ export async function pollTranscriptionStatus(predictionId, onUpdate) {
             throw new Error('转写超时，请稍后重试');
         }
 
-        const res = await fetch(`/api/transcribe?id=${encodeURIComponent(predictionId)}`);
+        const res = await fetch(`${VERCEL_API_BASE}/api/transcribe?id=${encodeURIComponent(predictionId)}`);
 
         if (!res.ok) {
             const err = await safeJson(res);
@@ -108,7 +114,7 @@ export async function pollTranscriptionStatus(predictionId, onUpdate) {
 }
 
 export async function getQuota() {
-    const res = await fetch('/api/transcribe?action=quota');
+    const res = await fetch(`${VERCEL_API_BASE}/api/transcribe?action=quota`);
     if (!res.ok) return null;
     return await res.json();
 }

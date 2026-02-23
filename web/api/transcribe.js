@@ -13,6 +13,7 @@ import {
 } from "./lib/replicateClient.js";
 import { postProcessSegments, formatToMarkdown } from "./lib/processor.js";
 import { getEnv } from "./_localEnv.js";
+import { handlePreflight, setCorsHeaders } from "./_cors.js";
 
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const POST_RATE_LIMIT_PER_MIN = Number(getEnv("POST_RATE_LIMIT_PER_MIN") || 6);
@@ -36,6 +37,8 @@ const globalState = globalThis.__transcribeState || {
 globalThis.__transcribeState = globalState;
 
 export default async function handler(request, response) {
+    if (handlePreflight(request, response)) return;
+    setCorsHeaders(request, response);
     pruneState();
 
     if (!REPLICATE_API_TOKEN) {

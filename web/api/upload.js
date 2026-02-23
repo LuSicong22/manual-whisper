@@ -1,6 +1,7 @@
 import Replicate from "replicate";
 import crypto from "node:crypto";
 import { getEnv } from "./_localEnv.js";
+import { handlePreflight, setCorsHeaders } from "./_cors.js";
 
 const REPLICATE_API_TOKEN = getEnv("REPLICATE_API_TOKEN");
 const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
@@ -11,6 +12,9 @@ const replicate = new Replicate({
 });
 
 export default async function handler(request, response) {
+    if (handlePreflight(request, response)) return;
+    setCorsHeaders(request, response);
+
     if (request.method !== "POST") {
         return response.status(405).json({ error: "Method not allowed" });
     }

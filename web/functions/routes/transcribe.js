@@ -15,8 +15,6 @@ import { postProcessSegments, formatToMarkdown } from "./lib/processor.js";
 import { getEnv } from "./_localEnv.js";
 import admin from "firebase-admin";
 
-const db = admin.firestore();
-
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const POST_RATE_LIMIT_PER_MIN = Number(getEnv("POST_RATE_LIMIT_PER_MIN") || 6);
 const GET_RATE_LIMIT_PER_MIN = Number(getEnv("GET_RATE_LIMIT_PER_MIN") || 60);
@@ -292,19 +290,30 @@ function parseBoolean(raw, fallback) {
 
 // Helper to interact with Firestore for Quotas
 async function getWeeklyUsageFromFirestore(ip) {
-    const docId = ip.replace(/[:.]/g, '_');
-    const docRef = db.collection('quotas').doc(docId);
-    const docSnap = await docRef.get();
+    try {
+        const db = admin.firestore();
+        const docId = ip.replace(/[:.]/g, '_');
+        const docRef = db.collection('quotas').doc(docId);
+        const docSnap = await docRef.get();
 
-    const now = Date.now();
-    const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+        const now = Date.now();
+        const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
-    if (docSnap.exists) {
-        const data = docSnap.data();
-        if (now - data.windowStart <= WEEK_MS) {
-            return { docRef, windowStart: data.windowStart, totalDurationSec: data.totalDurationSec || 0 };
+        if (docSnap.exists) {
+            const data = docSnap.data();
+            if (now - data.windowStart <= WEEK_MS) {
+                return { docRef, windowStart: data.windowStart, totalDurationSec: data.totalDurationSec || 0 };
+            }
         }
+        // Expired or entirely new IP
+        return { docRef, windowStart: now, totalDurationSec: 0 };
+    } catch (error) {
+        console.warn("Firestore unavailable for quota tracking, using mock quota.", error.message);
+
+        // Return a mock docRef that does nothing when set() is called
+        const mockDocRef = {
+            set: async () => { /* No-op */ }
+        };
+        return { docRef: mockDocRef, windowStart: Date.now(), totalDurationSec: 0 };
     }
-    // Expired or entirely new IP
-    return { docRef, windowStart: now, totalDurationSec: 0 };
 }

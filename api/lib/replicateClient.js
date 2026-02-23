@@ -5,11 +5,9 @@ import Replicate from "replicate";
 import { getEnv } from "../_localEnv.js";
 
 export const REPLICATE_API_TOKEN = getEnv("REPLICATE_API_TOKEN");
-export const APP_SHARED_KEY = getEnv("APP_SHARED_KEY");
 export const REPLICATE_MODEL = getEnv("REPLICATE_MODEL") || "victor-upmeet/whisperx";
 export const REPLICATE_MODEL_VERSION = getEnv("REPLICATE_MODEL_VERSION");
 export const HF_TOKEN = getEnv("HF_TOKEN");
-export const ENFORCE_APP_SHARED_KEY = parseBoolean(getEnv("ENFORCE_APP_SHARED_KEY"), false);
 export const LANGUAGE_OVERRIDE = (getEnv("LANGUAGE") || "").trim() || null;
 export const VALID_LANGUAGES = new Set(["zh", "en", "zh+en"]);
 

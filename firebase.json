@@ -1,16 +1,15 @@
 {
     "hosting": {
-        "target": "flashnotes",
         "public": ".",
         "ignore": [
             "firebase.json",
             "**/.*",
             "**/node_modules/**",
-            "functions/**",
             "api/**",
             "package.json",
             "package-lock.json",
-            "README.md"
+            "README.md",
+            "vercel.json"
         ]
     }
 }

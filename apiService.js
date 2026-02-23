@@ -60,7 +60,7 @@ export async function uploadFile(file, onProgress) {
     });
 }
 
-export async function createTranscription(fileUrl, sourceFilename, language, durationSec, adminSecret) {
+export async function createTranscription(fileUrl, sourceFilename, language, durationSec) {
     const res = await fetch(`${VERCEL_API_BASE}/api/transcribe`, {
         method: 'POST',
         headers: {
@@ -70,8 +70,7 @@ export async function createTranscription(fileUrl, sourceFilename, language, dur
             fileUrl,
             sourceFilename,
             language: language || 'zh+en',
-            durationSec,
-            adminSecret
+            durationSec
         })
     });
 

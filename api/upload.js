@@ -5,7 +5,6 @@ import { handlePreflight, setCorsHeaders } from "./_cors.js";
 
 const REPLICATE_API_TOKEN = getEnv("REPLICATE_API_TOKEN");
 const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
-const ENFORCE_APP_SHARED_KEY = parseBoolean(getEnv("ENFORCE_APP_SHARED_KEY"), false);
 
 const replicate = new Replicate({
     auth: REPLICATE_API_TOKEN,
@@ -21,11 +20,6 @@ export default async function handler(request, response) {
 
     if (!REPLICATE_API_TOKEN) {
         return response.status(500).json({ error: "Missing REPLICATE_API_TOKEN" });
-    }
-
-    const auth = requireSharedKey(request);
-    if (!auth.ok) {
-        return response.status(auth.status).json({ error: auth.error });
     }
 
     try {
@@ -55,30 +49,6 @@ export default async function handler(request, response) {
         console.error("Upload proxy error:", e);
         return response.status(mapped.status).json({ error: mapped.message });
     }
-}
-
-function requireSharedKey(request) {
-    if (!ENFORCE_APP_SHARED_KEY) {
-        return { ok: true, status: 200 };
-    }
-
-    const sharedKey = getEnv("APP_SHARED_KEY");
-    if (!sharedKey) {
-        return { ok: false, status: 500, error: "Missing APP_SHARED_KEY while ENFORCE_APP_SHARED_KEY=true" };
-    }
-
-    const incomingKey = request.headers["x-app-key"];
-    if (!incomingKey || typeof incomingKey !== "string") {
-        return { ok: false, status: 401, error: "Missing app key" };
-    }
-
-    const a = Buffer.from(incomingKey);
-    const b = Buffer.from(sharedKey);
-    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
-        return { ok: false, status: 401, error: "Invalid app key" };
-    }
-
-    return { ok: true, status: 200 };
 }
 
 function getSourceFilename(request) {

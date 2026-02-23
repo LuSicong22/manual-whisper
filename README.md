@@ -20,7 +20,6 @@ npm install
 创建 `.env.local` 文件并填入：
 ```
 REPLICATE_API_TOKEN=你的TOKEN
-APP_SHARED_KEY=你的密钥
 ```
 
 ### 3. 本地运行

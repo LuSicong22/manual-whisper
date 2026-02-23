@@ -54,7 +54,7 @@ export async function uploadFile(file, onProgress) {
     });
 }
 
-export async function createTranscription(fileUrl, sourceFilename, language) {
+export async function createTranscription(fileUrl, sourceFilename, language, durationSec, adminSecret) {
     const res = await fetch('/api/transcribe', {
         method: 'POST',
         headers: {
@@ -63,7 +63,9 @@ export async function createTranscription(fileUrl, sourceFilename, language) {
         body: JSON.stringify({
             fileUrl,
             sourceFilename,
-            language: language || 'zh+en'
+            language: language || 'zh+en',
+            durationSec,
+            adminSecret
         })
     });
 
@@ -103,6 +105,12 @@ export async function pollTranscriptionStatus(predictionId, onUpdate) {
         await sleep(interval);
         interval = Math.min(MAX_POLL_INTERVAL_MS, interval + 1000);
     }
+}
+
+export async function getQuota() {
+    const res = await fetch('/api/transcribe?action=quota');
+    if (!res.ok) return null;
+    return await res.json();
 }
 
 function safeParseXhrJson(xhr) {

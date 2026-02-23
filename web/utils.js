@@ -34,3 +34,30 @@ export function extractFileBaseName(filename) {
     if (dot <= 0) return filename;
     return filename.slice(0, dot);
 }
+
+export function getAudioDuration(fileOrBlob) {
+    return new Promise((resolve) => {
+        const url = URL.createObjectURL(fileOrBlob);
+        const audio = new Audio(url);
+
+        const cleanup = () => {
+            audio.removeEventListener('loadedmetadata', onLoaded);
+            audio.removeEventListener('error', onError);
+            URL.revokeObjectURL(url);
+        };
+
+        const onLoaded = () => {
+            resolve(audio.duration);
+            cleanup();
+        };
+
+        const onError = () => {
+            resolve(0); // fallback if it can't parse
+            cleanup();
+        };
+
+        audio.addEventListener('loadedmetadata', onLoaded);
+        audio.addEventListener('error', onError);
+    });
+}
+

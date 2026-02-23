@@ -1,9 +1,9 @@
 /**
  * main.js - App Controller for manual-whisper
  */
-import { formatTime, formatBytes, sleep, clampPercent, extractFileBaseName } from './utils.js';
+import { formatTime, formatBytes, sleep, clampPercent, extractFileBaseName, getAudioDuration } from './utils.js';
 import { t, setAppLang, getCurrentLang, updateDOMTranslations } from './i18n.js';
-import { uploadFile, createTranscription, pollTranscriptionStatus } from './apiService.js';
+import { uploadFile, createTranscription, pollTranscriptionStatus, getQuota } from './apiService.js';
 import { AudioRecorder } from './audioRecorder.js';
 
 // --- DOM Elements ---
@@ -45,6 +45,8 @@ const uploadSection = document.getElementById('upload-section');
 const recordSection = document.getElementById('record-section');
 const recordInfoBar = document.getElementById('record-info-bar');
 const removeRecordBtn = document.getElementById('remove-record-btn');
+const quotaDisplay = document.getElementById('quota-display');
+const quotaText = document.getElementById('quota-text');
 
 // Custom Player Elements
 const cpPlayerUI = document.getElementById('record-playback-ui');
@@ -374,7 +376,14 @@ async function startTranscriptionTask(file, language) {
         updateStatus('transcribe', t('status-creating-task'));
         setTranscribeProgress(5, `${t('transcribe-status').split('：')[0]}：${t('transcribe-creating')}...`);
 
-        const startData = await createTranscription(fileUrl, file.name, language);
+        const adminSecret = new URLSearchParams(window.location.search).get('admin');
+        const durationSec = await getAudioDuration(file);
+
+        if (!adminSecret && durationSec > 60 * 60) {
+            throw new Error(getCurrentLang() === 'zh' ? '音频长度超过 60 分钟限制。' : 'Audio length exceeds 60 minutes limit.');
+        }
+
+        const startData = await createTranscription(fileUrl, file.name, language, durationSec, adminSecret);
         const predictionId = startData.id;
         if (!predictionId) throw new Error('Missing prediction id');
         taskIdLine.textContent = `任务 ID：${predictionId}`;
@@ -488,6 +497,8 @@ function finishProcess(output) {
 
     inputArea.parentNode.classList.add('hidden');
     resultArea.classList.remove('hidden');
+
+    checkAndDisplayQuota(); // Refresh quota after finished
 
     if (selectedFile) {
         resultMeta.textContent = `${selectedFile.name} (${formatBytes(selectedFile.size)})`;
@@ -651,6 +662,46 @@ function startTimer() {
     }, 1000);
 }
 
+async function checkAndDisplayQuota() {
+    try {
+        const adminSecret = new URLSearchParams(window.location.search).get('admin');
+        if (adminSecret) {
+            quotaDisplay.classList.remove('hidden');
+            quotaText.textContent = getCurrentLang() === 'zh' ? '⭐ 管理员模式已开启' : '⭐ Admin bypass active';
+            return;
+        }
+
+        const data = await getQuota();
+        if (data && typeof data.limit === 'number') {
+            quotaDisplay.classList.remove('hidden');
+            const usedMin = Math.round(data.used / 60);
+            const totalMin = Math.round(data.limit / 60);
+            const remainingMin = Math.max(0, totalMin - usedMin);
+
+            if (getCurrentLang() === 'zh') {
+                quotaText.textContent = `本周剩余可转写：${remainingMin} / ${totalMin} 分钟`;
+            } else {
+                quotaText.textContent = `Weekly unused: ${remainingMin} / ${totalMin} mins`;
+            }
+
+            if (remainingMin <= 0) {
+                quotaDisplay.style.color = '#ef4444';
+                quotaDisplay.style.borderColor = '#ef4444';
+                quotaDisplay.style.backgroundColor = 'rgba(254, 226, 226, 0.9)';
+            } else if (remainingMin < 30) {
+                quotaDisplay.style.color = '#f59e0b';
+                quotaDisplay.style.borderColor = '#f59e0b';
+            } else {
+                quotaDisplay.style.color = 'var(--text-muted)';
+                quotaDisplay.style.borderColor = 'var(--glass-border)';
+                quotaDisplay.style.backgroundColor = 'var(--card-bg)';
+            }
+        }
+    } catch (err) {
+        // fail silently
+    }
+}
+
 // --- Initialize App ---
 function initialize() {
     // App Language Dropdown
@@ -787,6 +838,8 @@ function initialize() {
 
     setupCustomPlayer(recordPlayback, cpPlayBtn, cpIconPlay, cpIconPause, cpCurrentTime, cpDurationTime, cpSpeedBtn, cpTrack, cpFill, cpThumb, cpDownloadBtn);
     setupCustomPlayer(resultPlayback, resPlayBtn, resIconPlay, resIconPause, resCurrentTime, resDurationTime, resSpeedBtn, resTrack, resFill, resThumb, resDownloadBtn);
+
+    checkAndDisplayQuota();
 }
 
 // Start the app

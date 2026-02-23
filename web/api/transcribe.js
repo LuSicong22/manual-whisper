@@ -20,6 +20,10 @@ const GET_RATE_LIMIT_PER_MIN = Number(getEnv("GET_RATE_LIMIT_PER_MIN") || 60);
 const MAX_ACTIVE_JOBS_PER_IP = Number(getEnv("MAX_ACTIVE_JOBS_PER_IP") || 2);
 const META_TTL_MS = 24 * 60 * 60 * 1000;
 
+const ADMIN_SECRET = getEnv("ADMIN_SECRET");
+const MAX_FILE_DURATION_SEC = 60 * 60; // 1 hour
+const MAX_WEEKLY_DURATION_SEC = 2 * 60 * 60; // 2 hours
+
 const ENABLE_SECOND_PASS = parseBoolean(getEnv("ENABLE_SECOND_PASS"), true);
 
 const globalState = globalThis.__transcribeState || {
@@ -27,6 +31,7 @@ const globalState = globalThis.__transcribeState || {
     jobOwners: new Map(), // predictionId -> { ip, createdAt, language }
     activeJobsByIp: new Map(), // ip -> Set(predictionId)
     secondPassByPrimary: new Map(), // primaryPredictionId -> second-pass state
+    weeklyUsage: new Map(), // ip -> { windowStart, totalDurationSec }
 };
 globalThis.__transcribeState = globalState;
 
@@ -57,6 +62,19 @@ export default async function handler(request, response) {
 async function handleGet(clientIp, query, response) {
     const getRate = checkRateLimit(clientIp, "get", GET_RATE_LIMIT_PER_MIN);
     if (!getRate.ok) return response.status(429).json({ error: "Too many polling requests. Slow down and retry." });
+
+    if (query.action === "quota") {
+        let usage = globalState.weeklyUsage.get(clientIp);
+        const now = Date.now();
+        const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+        if (!usage || now - usage.windowStart > WEEK_MS) {
+            usage = { windowStart: now, totalDurationSec: 0 };
+        }
+        return response.status(200).json({
+            used: usage.totalDurationSec,
+            limit: MAX_WEEKLY_DURATION_SEC
+        });
+    }
 
     const { id } = query;
     if (!id) return response.status(400).json({ error: "Missing id" });
@@ -122,8 +140,36 @@ async function handlePost(clientIp, body, response) {
     }
 
     try {
-        const { fileUrl, sourceFilename, language: reqLanguage } = body || {};
+        const { fileUrl, sourceFilename, language: reqLanguage, durationSec, adminSecret } = body || {};
         const language = LANGUAGE_OVERRIDE || (typeof reqLanguage === "string" && VALID_LANGUAGES.has(reqLanguage) ? reqLanguage : "zh");
+        const isAdmin = ADMIN_SECRET && adminSecret === ADMIN_SECRET;
+
+        // Ensure duration is provided and valid. Allow 1-5 second leeway for rounding.
+        const duration = Number(durationSec);
+        if (isNaN(duration) || duration <= 0) {
+            return response.status(400).json({ error: "Missing or invalid audio duration." });
+        }
+
+        if (!isAdmin) {
+            if (duration > MAX_FILE_DURATION_SEC) {
+                return response.status(400).json({ error: `Audio length exceeds limit (max ${MAX_FILE_DURATION_SEC / 60} mins).` });
+            }
+
+            let usage = globalState.weeklyUsage.get(clientIp);
+            const now = Date.now();
+            const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+            if (!usage || now - usage.windowStart > WEEK_MS) {
+                usage = { windowStart: now, totalDurationSec: 0 };
+            }
+
+            if (usage.totalDurationSec + duration > MAX_WEEKLY_DURATION_SEC) {
+                return response.status(429).json({ error: `Weekly duration quota exceeded. Limit is ${MAX_WEEKLY_DURATION_SEC / 60 / 60} hours/week.` });
+            }
+
+            // Optimistically add duration
+            usage.totalDurationSec += duration;
+            globalState.weeklyUsage.set(clientIp, usage);
+        }
 
         if (!fileUrl) return response.status(400).json({ error: "Missing fileUrl" });
 
@@ -160,6 +206,12 @@ function pruneState() {
             if (active) active.delete(id);
             globalState.jobOwners.delete(id);
             globalState.secondPassByPrimary.delete(id);
+        }
+    }
+    const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+    for (const [ip, usage] of globalState.weeklyUsage.entries()) {
+        if (now - usage.windowStart > WEEK_MS) {
+            globalState.weeklyUsage.delete(ip);
         }
     }
 }

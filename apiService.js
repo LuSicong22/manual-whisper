@@ -7,9 +7,9 @@ const POLL_TIMEOUT_MS = 30 * 60 * 1000;
 const INITIAL_POLL_INTERVAL_MS = 3000;
 const MAX_POLL_INTERVAL_MS = 10000;
 
-// When hosted on Firebase (web.app domain), route API calls to Vercel.
-// In local dev (vercel dev / firebase emulators), use relative paths.
-const VERCEL_API_BASE = typeof window !== 'undefined' && window.location.hostname.endsWith('.web.app')
+// When hosted on Firebase (web.app domain) or testing frontend locally via Firebase emulators, route API calls to Vercel.
+// When using vercel dev (typically localhost:3000), use relative paths for local testing.
+const VERCEL_API_BASE = typeof window !== 'undefined' && (window.location.hostname.endsWith('.web.app') || window.location.hostname === '127.0.0.1' || window.location.port === '5000')
     ? 'https://whisper-omega.vercel.app'
     : '';
 

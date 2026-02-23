@@ -1,105 +1,88 @@
-# 🎙️ 录音转写工具
+# 🎙️ Manual Whisper
 
-## 🚀 快速使用（无需安装任何软件）
+高精度、隐私友好的中文录音转写工具。基于 WhisperX 和 Replicate，支持说话人分离、幻觉去重与自动化质量修复。
 
-点击下方按钮，在浏览器中直接使用（需要 Google 账号）：
+## 🌟 核心特性
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/LuSicong22/manual-whisper/blob/main/transcribe_colab.ipynb)
-
-1. 点击上方按钮打开页面
-2. 点击菜单 **运行时 → 全部运行**
-3. 等待下方出现导入界面（首次约 2-3 分钟）
-4. 导入录音文件 → 点"开始转写" → 下载结果
+- **高精度转写**：采用 WhisperX `large-v3` 模型，针对中文会议与讨论进行优化。
+- **说话人分离**：自动识别并标注不同的发言者（Diarization）。
+- **质量修复**：内置幻觉清理、重复短句去重及提示词过滤，生成更清爽的文本。
+- **多端支持**：提供网页版（支持直接录音）与本地 CLI 工具。
+- **隐私保护**：音频仅在转写时上传至专用云端 GPU（Replicate），不存储原文。
 
 ---
 
-## 本地部署
+## 🚀 网页版 (推荐)
 
-本地运行的录音转写工具，基于 [WhisperX](https://github.com/m-bain/whisperX)，支持：
+直接在浏览器中使用，支持电脑与手机。
 
-- ✅ 高精度中文转写（WhisperX large-v3 模型）
-- ✅ 说话人分离（自动识别不同发言者）
-- ✅ 精确时间戳
-- ✅ 输出 Markdown + JSON 格式
-- ✅ 幻觉去重后处理
+**访问地址**: [https://flashnotes.web.app/](https://flashnotes.web.app/)
 
-## 环境要求
+### 快速开始
+1. 打开网页，允许麦克风权限。
+2. **直接录音** 或 **导入本地音频**（m4a, mp3, wav等）。
+3. 点击“开始转写”，稍等片刻即可获得结果。
+4. 支持导出 Markdown 和 JSON 格式。
 
-- Python 3.9+
-- macOS / Linux / Windows
-- 建议内存 ≥ 8GB（使用 `large-v3` 模型）
+### 网页版私有化部署
+如果你想自己托管：
+1. 进入 `web` 目录并安装依赖：`npm install`
+2. 配置 `REPLICATE_API_TOKEN`（在 `.env.local`）。
+3. 使用 `vercel dev` 本地预览，或 `vercel --prod` 部署至 Vercel。
+4. 详见 [web/README.md](web/README.md)。
 
-## 快速开始
+---
 
-### 1. 克隆仓库
+## 💻 本地 CLI 版 (高级)
 
-```bash
-git clone https://github.com/你的用户名/manual-whisper.git
-cd manual-whisper
-```
+适合需要在大规模本地文件上运行或不希望使用云端 API 的用户。
 
-### 2. 安装依赖
+### 环境要求
+- Python 3.9+ 
+- 建议内存 ≥ 8GB
 
-```bash
-# 建议使用虚拟环境
-python3 -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
+### 安装与运行
+1. **克隆仓库**:
+   ```bash
+   git clone https://github.com/LuSicong22/manual-whisper.git
+   cd manual-whisper
+   ```
+2. **安装依赖**:
+   ```bash
+   python -m venv venv
+   source venv/bin/activate
+   pip install -r requirements.txt
+   ```
+3. **设置 Token (可选但推荐)**:
+   复制 `.env.example` 为 `.env`，填入 `HF_TOKEN` 以启用说话人分离。
+4. **执行转写**:
+   ```bash
+   python transcribe.py 你的音频文件.m4a
+   ```
 
-pip install -r requirements.txt
-```
+---
 
-### 3. 配置 Token
+## 🛠️ 配置说明
 
-说话人分离功能需要 Hugging Face Token：
+无论使用哪个版本，你都可以通过环境变量控制行为：
 
-1. 注册 [Hugging Face](https://huggingface.co/) 账号
-2. 前往 [Token 页面](https://huggingface.co/settings/tokens) 创建 Token
-3. 同意以下模型的使用条款（点击链接 → Accept）：
-   - [pyannote/speaker-diarization-3.1](https://huggingface.co/pyannote/speaker-diarization-3.1)
-   - [pyannote/segmentation-3.0](https://huggingface.co/pyannote/segmentation-3.0)
-4. 复制 `.env.example` 为 `.env`，填入你的 Token：
+| 变量 | 说明 |
+|------|------|
+| `HF_TOKEN` | Hugging Face Token，用于说话人分离。 |
+| `WHISPER_MODEL` | 模型大小（large-v3, medium, small）。 |
+| `DOMAIN_TERMS` | 会议常见术语表，用于减少识别误差。 |
 
-```bash
-cp .env.example .env
-# 编辑 .env，填入 HF_TOKEN
-```
+## ❓ 常见问题
 
-> 💡 如果不配置 Token，工具仍可正常转写，只是不会标注说话人。
+**Q: 网页版收费吗？**
+A: 本工具核心代码开源，自托管需要 Replicate API 额度。官方演示站取决于维护者的余额。
 
-### 4. 运行转写
+**Q: 为什么说话人显示为 SPEAKER_00, SPEAKER_01？**
+A: 这是自动识别的编号，你可以根据上下文在导出的 Markdown 中自行查找替换。
 
-```bash
-python transcribe.py 你的录音文件.m4a
-```
+**Q: 幻觉（Hallucination）是什么？**
+A: 当音频中有长时间静音或背景噪音时，Whisper 有可能产生无意义的重复短语。本项目已内置算法自动检测并剔除此类内容。
 
-转写完成后会生成两个文件：
-- `你的录音文件_transcript.md` — Markdown 格式转写稿
-- `你的录音文件_transcript.json` — JSON 格式完整数据
-
-## 可选配置
-
-在 `.env` 文件中可以调整：
-
-| 变量 | 默认值 | 说明 |
-|------|--------|------|
-| `WHISPER_MODEL` | `large-v3` | 模型大小。内存不足可用 `medium` 或 `small` |
-| `BATCH_SIZE` | `4` | 批处理大小。CPU 推荐 4-8 |
-
-## 支持的音频格式
-
-m4a, mp3, wav, flac, ogg 等主流音频格式均支持。
-
-## 常见问题
-
-**Q: 首次运行很慢？**
-A: 首次运行会自动下载模型文件（large-v3 约 3GB），后续运行会使用缓存。
-
-**Q: 内存不足怎么办？**
-A: 在 `.env` 中设置 `WHISPER_MODEL=medium` 或 `WHISPER_MODEL=small`。
-
-**Q: 没有 GPU 可以用吗？**
-A: 可以，默认就是 CPU 模式。GPU 用户可修改代码中的 `DEVICE` 为 `"cuda"`。
-
-## License
+## 📄 License
 
 MIT

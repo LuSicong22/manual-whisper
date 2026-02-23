@@ -52,7 +52,7 @@ export const appI18n = {
         'btn-cancel': '取消',
         'confirm-ok': '确定结束',
         'nav-github': '开源项目',
-        'open-source-hint': '代码完全开源，支持私人部署以确保 100% 隐私',
+        'open-source-hint': '代码完全开源，支持私人部署以确保 100% 隐私'
     },
     en: {
         'app-title': 'FlashNotes',
@@ -103,30 +103,54 @@ export const appI18n = {
         'btn-cancel': 'Cancel',
         'confirm-ok': 'Stop Recording',
         'nav-github': 'Open Source',
-        'open-source-hint': 'Fully open source. Support self-hosting for 100% privacy.',
+        'open-source-hint': 'Fully open source. Support self-hosting for 100% privacy.'
     }
 };
 
-let currentAppLang = localStorage.getItem('appLang') || 'en';
+const normalizeLang = (lang) => {
+    if (!lang) return 'en';
+    const base = lang.split('-')[0].toLowerCase();
+    return appI18n[base] ? base : 'en';
+};
+
+let currentAppLang = normalizeLang(localStorage.getItem('appLang'));
 
 export function getCurrentLang() {
     return currentAppLang;
 }
 
 export function setAppLang(lang) {
-    if (appI18n[lang]) {
-        currentAppLang = lang;
-        localStorage.setItem('appLang', lang);
-    }
+    const normalized = normalizeLang(lang);
+    currentAppLang = normalized;
+    localStorage.setItem('appLang', normalized);
 }
 
 export function t(key) {
-    return appI18n[currentAppLang][key] || key;
+    if (!key) return '';
+    const k = String(key).trim();
+    if (appI18n[currentAppLang] && appI18n[currentAppLang][k]) {
+        return appI18n[currentAppLang][k];
+    }
+    if (appI18n['en'] && appI18n['en'][k]) {
+        return appI18n['en'][k];
+    }
+    return k;
 }
 
 export function updateDOMTranslations() {
+    // textContent
     document.querySelectorAll('[data-i18n]').forEach(el => {
         const key = el.getAttribute('data-i18n');
-        el.textContent = t(key);
+        if (key) el.textContent = t(key);
+    });
+    // title
+    document.querySelectorAll('[data-i18n-title]').forEach(el => {
+        const key = el.getAttribute('data-i18n-title');
+        if (key) el.setAttribute('title', t(key));
+    });
+    // placeholder
+    document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+        const key = el.getAttribute('data-i18n-placeholder');
+        if (key) el.setAttribute('placeholder', t(key));
     });
 }

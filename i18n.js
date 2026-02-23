@@ -7,7 +7,7 @@ export const appI18n = {
         'app-title': '闪记',
         'hero-title': 'AI 录音转写',
         'app-desc': '自动转写为带时间戳和说话人标签的文字稿',
-        'upload-title': '导入音频进行分析',
+        'upload-title': '导入音频',
         'upload-subtitle': '支持 m4a, mp3, wav, flac, ogg, wma, webm, aac',
         'no-file': '未选择文件',
         'or': '或',
@@ -52,13 +52,18 @@ export const appI18n = {
         'btn-cancel': '取消',
         'confirm-ok': '确定结束',
         'nav-github': '开源项目',
-        'open-source-hint': '代码完全开源，支持私人部署以确保 100% 隐私'
+        'open-source-hint': '代码完全开源，支持私人部署以确保 100% 隐私',
+        'history-title': '历史记录',
+        'history-empty': '暂无转写记录',
+        'history-clear': '清空全部',
+        'history-clear-confirm': '确定要清空所有历史记录吗？',
+        'history-deleted': '已删除'
     },
     en: {
         'app-title': 'FlashNotes',
         'hero-title': 'AI Audio Transcription',
         'app-desc': 'Auto-transcribe audio with timestamps & speaker tags',
-        'upload-title': 'Import Audio for Analysis',
+        'upload-title': 'Import Audio',
         'upload-subtitle': 'Supports m4a, mp3, wav, flac, ogg, wma, webm, aac',
         'no-file': 'No file selected',
         'or': 'OR',
@@ -103,7 +108,12 @@ export const appI18n = {
         'btn-cancel': 'Cancel',
         'confirm-ok': 'Stop Recording',
         'nav-github': 'Open Source',
-        'open-source-hint': 'Fully open source. Support self-hosting for 100% privacy.'
+        'open-source-hint': 'Fully open source. Support self-hosting for 100% privacy.',
+        'history-title': 'History',
+        'history-empty': 'No transcription history yet',
+        'history-clear': 'Clear All',
+        'history-clear-confirm': 'Are you sure you want to clear all history?',
+        'history-deleted': 'Deleted'
     }
 };
 

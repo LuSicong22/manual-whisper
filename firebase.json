@@ -1,5 +1,6 @@
 {
     "hosting": {
+        "site": "flashnotes-ai",
         "public": ".",
         "ignore": [
             "firebase.json",

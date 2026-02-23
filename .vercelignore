@@ -1,0 +1,12 @@
+# Frontend files — served by Firebase Hosting only
+index.html
+style.css
+main.js
+apiService.js
+audioRecorder.js
+i18n.js
+utils.js
+logo.png
+firebase.json
+.firebaserc
+.firebase

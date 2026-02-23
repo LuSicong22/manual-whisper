@@ -8,6 +8,14 @@
     <link rel="icon" type="image/png" href="logo.png">
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <!-- Google Analytics 4 -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-X7VZ3BYVZM"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'G-X7VZ3BYVZM');
+    </script>
 </head>
 
 <body>
@@ -23,19 +31,13 @@
             <div class="logo-wrapper">
                 <img src="logo.png" alt="FlashNotes Logo" class="nav-logo" />
                 <h1 class="text-gradient" data-i18n="app-title">闪记</h1>
+                <span class="version-badge">1.0</span>
             </div>
             <div class="nav-actions">
-                <a href="https://github.com/LuSicong22/manual-whisper" target="_blank" class="nav-github-link"
-                    title="Fully open source. Support self-hosting for 100% privacy."
-                    data-i18n-title="open-source-hint">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                        stroke-linecap="round" stroke-linejoin="round">
-                        <path
-                            d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22">
-                        </path>
-                    </svg>
-                    <span class="nav-github-text" data-i18n="nav-github">Open Source</span>
-                </a>
+                <!-- 额度提示区域 -->
+                <div id="quota-display" class="quota-container hidden">
+                    <span id="quota-text"></span>
+                </div>
                 <div class="custom-dropdown" id="app-lang-dropdown">
                     <div class="app-lang-pill" id="app-lang-trigger" tabindex="0">
                         <svg class="lang-globe-icon" width="16" height="16" viewBox="0 0 24 24" fill="none"
@@ -243,12 +245,24 @@
                 <div class="meter">
                     <div id="transcribe-progress-fill" class="meter-fill fill-purple"></div>
                 </div>
-                <div id="task-id-line" class="runtime-muted"></div>
-                <div id="transcribe-log-line" class="runtime-muted"></div>
             </div>
         </div>
 
+        <!-- 历史记录面板 -->
+        <div id="history-panel" class="hero-panel history-panel hidden">
+            <div class="history-header">
+                <h3 data-i18n="history-title">历史记录</h3>
+                <button id="history-clear-btn" class="btn history-clear-btn hidden"
+                    data-i18n="history-clear">清空全部</button>
+            </div>
+            <div id="history-list" class="history-list">
+                <!-- History Items go here -->
+            </div>
+            <div id="history-empty" class="history-empty" data-i18n="history-empty">
+                暂无转写记录
+            </div>
         </div>
+
     </main>
 
     <!-- 宏大的结果区域，铺满宽屏 -->
@@ -336,11 +350,6 @@
 
     <!-- 全局悬浮错误提示 -->
     <div id="error-message" class="error-box hidden fixed-error"></div>
-
-    <!-- 额度提示区域 -->
-    <div id="quota-display" class="quota-container hidden">
-        <span id="quota-text"></span>
-    </div>
 
     <!-- 意见反馈悬浮按钮 -->
     <a href="https://wj.qq.com/s2/25776996/fc92/" target="_blank" class="feedback-fab" aria-label="意见反馈">

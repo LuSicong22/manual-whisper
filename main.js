@@ -5,6 +5,8 @@ import { formatTime, formatBytes, sleep, clampPercent, extractFileBaseName, getA
 import { t, setAppLang, getCurrentLang, updateDOMTranslations } from './i18n.js';
 import { uploadFile, createTranscription, pollTranscriptionStatus, getQuota } from './apiService.js';
 import { AudioRecorder } from './audioRecorder.js';
+import { saveHistory, getAllHistory, getHistoryById, deleteHistoryById, clearAllHistory } from './historyStore.js';
+import { initAnalytics, trackError, trackTranscriptionStart, trackTranscriptionComplete } from './analytics.js';
 
 // --- DOM Elements ---
 const inputArea = document.getElementById('input-area');
@@ -33,8 +35,6 @@ const uploadStatusLine = document.getElementById('upload-status-line');
 const transcribeStatusLine = document.getElementById('transcribe-status-line');
 const uploadProgressFill = document.getElementById('upload-progress-fill');
 const transcribeProgressFill = document.getElementById('transcribe-progress-fill');
-const taskIdLine = document.getElementById('task-id-line');
-const transcribeLogLine = document.getElementById('transcribe-log-line');
 const recordBtn = document.getElementById('record-btn');
 const recordStatus = document.getElementById('record-status');
 const volumeMeter = document.getElementById('volume-meter');
@@ -80,9 +80,14 @@ const confirmOkBtn = document.getElementById('confirm-ok');
 const confirmCancelBtn = document.getElementById('confirm-cancel');
 const modalTitle = document.getElementById('modal-title');
 
+const historyList = document.getElementById('history-list');
+const historyClearBtn = document.getElementById('history-clear-btn');
+const historyEmpty = document.getElementById('history-empty');
+
 // --- Global State ---
 let lastAudioUrl = null;
 let recordPlaybackUrl = null;
+let currentAudioUrl = null; // Stored Replicate file URL
 let startTime;
 let timerInterval;
 let currentFileBaseName = 'transcript';
@@ -366,6 +371,9 @@ async function startTranscriptionTask(file, language) {
     running = true;
     setControlsDisabled(true);
 
+    const inputSource = recordPlaybackUrl ? 'record' : 'upload';
+    trackTranscriptionStart(language, inputSource, Math.round(file.size / 1024 / 1024 * 10) / 10);
+
     inputArea.classList.add('hidden');
     progressArea.classList.remove('hidden');
     resultArea.classList.add('hidden');
@@ -380,6 +388,7 @@ async function startTranscriptionTask(file, language) {
             const percent = Math.round((uploaded / total) * 100);
             setUploadProgress(percent, `${t('transfer-progress')}：${percent}% (${formatBytes(uploaded)} / ${formatBytes(total)})`);
         });
+        currentAudioUrl = fileUrl;
 
         setUploadProgress(100, `${t('transfer-success')} (${formatBytes(file.size)})`);
         updateStatus('transcribe', t('status-creating-task'));
@@ -395,7 +404,6 @@ async function startTranscriptionTask(file, language) {
         const startData = await createTranscription(fileUrl, file.name, language, durationSec, adminSecret);
         const predictionId = startData.id;
         if (!predictionId) throw new Error('Missing prediction id');
-        taskIdLine.textContent = `任务 ID：${predictionId}`;
 
         updateStatus('transcribe', t('status-transcribing'));
         renderPredictionProgress(startData);
@@ -407,6 +415,8 @@ async function startTranscriptionTask(file, language) {
         finishProcess(finalData.output);
     } catch (error) {
         console.error(error);
+        const elapsedSec = Math.round((Date.now() - startTime) / 1000);
+        trackTranscriptionComplete(elapsedSec, false);
         showError(error.message);
         resetUI();
     }
@@ -420,10 +430,6 @@ function renderPredictionProgress(data) {
     const computedPercent = computeTranscribePercent(status, progress);
     const elapsedSec = typeof progress.elapsedSec === 'number' ? `${getCurrentLang() === 'zh' ? '，已用时 ' : ', elapsed '}${progress.elapsedSec}s` : '';
     setTranscribeProgress(computedPercent, `${t('transcribe-status').split('：')[0]}：${mappedStatus} (${computedPercent}%)${elapsedSec}`);
-
-    if (data.id) {
-        taskIdLine.textContent = `任务 ID：${data.id}`;
-    }
 
     const logsTail = Array.isArray(progress.logsTail) ? progress.logsTail : [];
     const extras = [];
@@ -449,7 +455,6 @@ function renderPredictionProgress(data) {
         const spStatusText = hasPercent ? `${spStatus} (${Math.max(0, Math.min(100, Math.round(spPercent)))}%)` : spStatus;
         if (spStatusText) extras.push(`${getCurrentLang() === 'zh' ? '二次修复' : 'Second Pass'}：${spStatusText}${rangeCount > 0 ? (getCurrentLang() === 'zh' ? `，窗口 ${rangeCount}` : `, window ${rangeCount}`) : ''}`);
     }
-    transcribeLogLine.textContent = extras.join(' ｜ ');
 }
 
 function computeTranscribePercent(status, progress) {
@@ -486,6 +491,8 @@ function statusToLocalized(status) {
 
 function finishProcess(output) {
     clearInterval(timerInterval);
+    const elapsedSec = Math.round((Date.now() - startTime) / 1000);
+    trackTranscriptionComplete(elapsedSec, true);
     updateStatus('process', t('status-done'));
     setTranscribeProgress(100, `${t('transcribe-status').split('：')[0]}：${t('transcribe-finished')} (100%)`);
 
@@ -503,6 +510,17 @@ function finishProcess(output) {
     transcriptPreview.textContent = mdContent;
     setupDownload(downloadMdBtn, mdContent, `${currentFileBaseName}_transcript.md`, 'text/markdown');
     setupDownload(downloadJsonBtn, jsonContent, `${currentFileBaseName}_transcript.json`, 'application/json');
+
+    const historyRecord = {
+        id: `ts_${Date.now()}`,
+        fileName: selectedFile ? selectedFile.name : currentFileBaseName,
+        fileSize: selectedFile ? selectedFile.size : 0,
+        timestamp: Date.now(),
+        markdown: mdContent,
+        json: output && output.json ? output.json : output,
+        audioUrl: currentAudioUrl
+    };
+    saveHistory(historyRecord);
 
     inputArea.parentNode.classList.add('hidden');
     resultArea.classList.remove('hidden');
@@ -571,8 +589,6 @@ function setupDownload(btn, content, filename, type) {
 
 function resetRuntimeBox(file) {
     transcribePercentHint = 0;
-    taskIdLine.textContent = '';
-    transcribeLogLine.textContent = '';
     setUploadProgress(0, `${t('upload-status')} (${formatBytes(file.size)})`);
     setTranscribeProgress(0, t('transcribe-status'));
 }
@@ -610,6 +626,7 @@ function updateStatus(stepMode, text) {
 function showError(msg) {
     errorMessage.textContent = `错误: ${msg}`;
     errorMessage.classList.remove('hidden');
+    trackError(msg, 'ui');
 }
 
 function resetUI() {
@@ -633,6 +650,7 @@ function resetUI() {
     cpSpeedBtn.textContent = '1×';
     resPlayerUI.classList.add('hidden');
     resultPlayback.src = '';
+    currentAudioUrl = null;
 
     // 还原上传区与录音区的完整初始可见状态
     uploadSection.classList.remove('dimmed', 'hidden');
@@ -640,6 +658,9 @@ function resetUI() {
 
     const splitDivider = document.querySelector('.split-divider');
     if (splitDivider) splitDivider.classList.remove('hidden');
+
+    const historyPanel = document.getElementById('history-panel');
+    if (historyPanel) historyPanel.classList.remove('hidden');
 
     // 还原录音按钮与标签
     recordBtn.classList.remove('hidden', 'recording');
@@ -669,6 +690,8 @@ function resetUI() {
         URL.revokeObjectURL(lastAudioUrl);
         lastAudioUrl = null;
     }
+
+    renderHistoryList();
 }
 
 function setControlsDisabled(disabled) {
@@ -736,8 +759,130 @@ async function checkAndDisplayQuota() {
     }
 }
 
+function renderHistoryList() {
+    if (!historyList || !historyEmpty || !historyClearBtn) return;
+
+    const records = getAllHistory();
+    historyList.innerHTML = '';
+
+    if (records.length === 0) {
+        historyEmpty.classList.remove('hidden');
+        historyClearBtn.classList.add('hidden');
+        return;
+    }
+
+    historyEmpty.classList.add('hidden');
+    historyClearBtn.classList.remove('hidden');
+
+    records.forEach(record => {
+        const itemEl = document.createElement('div');
+        itemEl.className = 'history-item';
+
+        const infoEl = document.createElement('div');
+        infoEl.className = 'history-info';
+
+        const titleEl = document.createElement('div');
+        titleEl.className = 'history-title';
+        titleEl.textContent = record.fileName;
+
+        const timeEl = document.createElement('div');
+        timeEl.className = 'history-time';
+        const d = new Date(record.timestamp);
+        timeEl.textContent = `${d.toLocaleDateString()} ${d.toLocaleTimeString()}`;
+
+        infoEl.appendChild(titleEl);
+        infoEl.appendChild(timeEl);
+
+        const delBtn = document.createElement('button');
+        delBtn.className = 'history-del-btn';
+        delBtn.innerHTML = `
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            </svg>
+        `;
+
+        delBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            modalContext = 'delete-history';
+            modalTitle.textContent = t('record-remove-confirm');
+            confirmOkBtn.textContent = '确定';
+            confirmModal.dataset.deleteId = record.id;
+            confirmModal.classList.remove('hidden');
+        });
+
+        itemEl.appendChild(infoEl);
+        itemEl.appendChild(delBtn);
+
+        itemEl.addEventListener('click', () => {
+            viewHistoryItem(record.id);
+        });
+
+        historyList.appendChild(itemEl);
+    });
+}
+
+function viewHistoryItem(id) {
+    const record = getHistoryById(id);
+    if (!record) return;
+
+    resetUI();
+
+    inputArea.parentNode.classList.add('hidden');
+    resultArea.classList.remove('hidden');
+
+    transcriptPreview.textContent = record.markdown;
+
+    const mdContent = record.markdown;
+    const jsonContent = JSON.stringify(record.json, null, 2);
+
+    setupDownload(downloadMdBtn, mdContent, `${extractFileBaseName(record.fileName)}_transcript.md`, 'text/markdown');
+    setupDownload(downloadJsonBtn, jsonContent, `${extractFileBaseName(record.fileName)}_transcript.json`, 'application/json');
+
+    resultMeta.textContent = `${record.fileName} (${formatBytes(record.fileSize || 0)})`;
+
+    if (copyTranscriptBtn) {
+        copyTranscriptBtn.onclick = async () => {
+            try {
+                await navigator.clipboard.writeText(mdContent);
+                const originalHtml = copyTranscriptBtn.innerHTML;
+                copyTranscriptBtn.innerHTML = `
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                    <span>${getCurrentLang() === 'zh' ? '已复制' : 'Copied'}</span>
+                `;
+                copyTranscriptBtn.classList.remove('secondary');
+                copyTranscriptBtn.classList.add('primary');
+                setTimeout(() => {
+                    copyTranscriptBtn.innerHTML = originalHtml;
+                    copyTranscriptBtn.classList.remove('primary');
+                    copyTranscriptBtn.classList.add('secondary');
+                }, 2000);
+            } catch (err) {
+                console.error('Failed to copy text: ', err);
+            }
+        };
+    }
+
+    if (record.audioUrl) {
+        resultPlayback.src = record.audioUrl;
+        resPlayerUI.classList.remove('hidden');
+        resFill.style.width = '0%';
+        resThumb.style.left = '0%';
+        resCurrentTime.textContent = '0:00';
+        resIconPlay.classList.remove('hidden');
+        resIconPause.classList.add('hidden');
+        resultPlayback.playbackRate = 1;
+        resSpeedBtn.textContent = '1×';
+    } else {
+        resPlayerUI.classList.add('hidden');
+    }
+}
+
 // --- Initialize App ---
 function initialize() {
+    initAnalytics();
     // App Language Dropdown
     const appLangTrigger = document.getElementById('app-lang-trigger');
     const appLangOptions = document.getElementById('app-lang-options');
@@ -825,6 +970,16 @@ function initialize() {
         resetUI();
     });
 
+    if (historyClearBtn) {
+        historyClearBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            modalContext = 'clear-history';
+            modalTitle.textContent = t('history-clear-confirm');
+            confirmOkBtn.textContent = '确定';
+            confirmModal.classList.remove('hidden');
+        });
+    }
+
     removeFileBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         fileInput.value = '';
@@ -856,6 +1011,15 @@ function initialize() {
             stopRecording();
         } else if (modalContext === 'remove') {
             updateSelectedFile(null);
+        } else if (modalContext === 'delete-history') {
+            const id = confirmModal.dataset.deleteId;
+            if (id) {
+                deleteHistoryById(id);
+                renderHistoryList();
+            }
+        } else if (modalContext === 'clear-history') {
+            clearAllHistory();
+            renderHistoryList();
         }
     });
 
@@ -873,6 +1037,7 @@ function initialize() {
     setupCustomPlayer(recordPlayback, cpPlayBtn, cpIconPlay, cpIconPause, cpCurrentTime, cpDurationTime, cpSpeedBtn, cpTrack, cpFill, cpThumb, cpDownloadBtn);
     setupCustomPlayer(resultPlayback, resPlayBtn, resIconPlay, resIconPause, resCurrentTime, resDurationTime, resSpeedBtn, resTrack, resFill, resThumb, resDownloadBtn);
 
+    renderHistoryList();
     checkAndDisplayQuota();
 }
 

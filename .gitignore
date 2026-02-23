@@ -1,13 +1,11 @@
-# --- Root-level CLI files (Hidden from GitHub) ---
-transcribe.py
-requirements.txt
-.env
-.env.vercel_backup
+# --- Web App Build & Environment ---
+node_modules/
+.vercel/
+.firebase/
+firebase-debug.log
 .env.local
-venv/
-.venv/
-__pycache__/
-reference/
+.env.vercel_backup
+dist/
 
 # --- Audio Files (Local only) ---
 *.m4a
@@ -16,17 +14,6 @@ reference/
 *.flac
 *.ogg
 *.wma
-
-# --- Transcription Outputs (Local only) ---
-*_transcript.md
-*_transcript.json
-
-# --- Web App Build & Environment ---
-node_modules/
-.vercel/
-.firebase/
-firebase-debug.log
-dist/
 
 # --- OS Files ---
 .DS_Store

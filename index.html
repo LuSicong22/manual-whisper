@@ -94,7 +94,7 @@
                         <input type="file" id="file-input" accept=".m4a,.mp3,.wav,.flac,.ogg,.wma,.webm,.aac" hidden />
                         <div id="file-info-bar" class="file-info-bar hidden">
                             <span id="selected-file-name" class="file-name"></span>
-                            <button id="remove-file-btn" class="remove-btn" aria-label="移除文件">
+                            <button id="remove-file-btn" class="remove-btn" aria-label="移除文件" data-i18n-title="record-remove-confirm">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                     <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -128,7 +128,7 @@
                             <p id="record-label" class="huge-text record-label" data-i18n="record-start">点击开始实时录音</p>
                             <div id="record-info-bar" class="file-info-bar hidden">
                                 <p id="record-status" class="record-status"></p>
-                                <button id="remove-record-btn" class="remove-btn" aria-label="移除录音">
+                                <button id="remove-record-btn" class="remove-btn" aria-label="移除录音" data-i18n-title="record-remove-confirm">
                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                         <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -147,7 +147,7 @@
                             <div id="record-playback-ui" class="custom-player hidden">
                                 <audio id="record-playback"></audio>
                                 <div class="cp-top">
-                                    <button class="cp-play-btn" id="cp-play-btn" aria-label="播放">
+                                    <button class="cp-play-btn" id="cp-play-btn" aria-label="播放" data-i18n-title="play">
                                         <svg id="cp-icon-play" width="18" height="18" viewBox="0 0 24 24"
                                             fill="currentColor" stroke="none">
                                             <polygon points="5,3 19,12 5,21" />
@@ -164,7 +164,7 @@
                                         <span id="cp-duration">0:00</span>
                                     </div>
                                     <button class="cp-speed-btn" id="cp-speed-btn">1×</button>
-                                    <button class="cp-download-btn" id="cp-download-btn" aria-label="下载音频">
+                                    <button class="cp-download-btn" id="cp-download-btn" aria-label="下载音频" data-i18n-title="download-audio">
                                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
                                             stroke="currentColor" stroke-width="2" stroke-linecap="round"
                                             stroke-linejoin="round">
@@ -318,7 +318,7 @@
                     </div>
 
                     <div class="actions-stack">
-                        <button id="copy-transcript" class="btn secondary wide-btn" title="复制文字稿">
+                        <button id="copy-transcript" class="btn secondary wide-btn" title="复制文字稿" data-i18n-title="btn-copy">
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
@@ -350,7 +350,7 @@
     <div id="error-message" class="error-box hidden fixed-error"></div>
 
     <!-- 意见反馈悬浮按钮 -->
-    <a href="https://wj.qq.com/s2/25776996/fc92/" target="_blank" class="feedback-fab" aria-label="意见反馈">
+    <a href="https://wj.qq.com/s2/25776996/fc92/" target="_blank" class="feedback-fab" aria-label="意见反馈" data-i18n-title="feedback">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
             stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0">
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />

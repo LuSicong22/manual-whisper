@@ -319,7 +319,7 @@ function stopRecording() {
     const wavBlob = recorder.stop();
     const now = new Date();
     const ts = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}`;
-    const fileName = `录音_${ts}.wav`;
+    const fileName = `${t('recording-name-prefix')}${ts}.wav`;
     const file = new File([wavBlob], fileName, { type: 'audio/wav' });
 
     updateSelectedFile(file, 'record');
@@ -373,15 +373,15 @@ async function startTranscriptionTask(file, language) {
         return;
     }
     if (file.size <= 0) {
-        showError('文件为空，请重新选择');
+        showError(t('error-file-empty'));
         return;
     }
     if (file.size > MAX_UPLOAD_BYTES) {
-        showError('文件过大，当前直传上限约 100MB');
+        showError(t('error-file-too-large'));
         return;
     }
     if (!SUPPORTED_EXTENSIONS.some(ext => file.name.toLowerCase().endsWith(ext))) {
-        showError(`文件格式不支持，仅支持: ${SUPPORTED_EXTENSIONS.join(', ')}`);
+        showError(`${t('error-file-format')}${t('colon')}${SUPPORTED_EXTENSIONS.join(', ')}`);
         return;
     }
 
@@ -416,7 +416,7 @@ async function startTranscriptionTask(file, language) {
         const durationSec = await getAudioDuration(file);
 
         if (!adminSecret && durationSec > 60 * 60) {
-            throw new Error(getCurrentLang() === 'zh' ? '音频长度超过 60 分钟限制。' : 'Audio length exceeds 60 minutes limit.');
+            throw new Error(t('error-duration-limit'));
         }
 
         const startData = await createTranscription(fileUrl, file.name, language, durationSec, adminSecret);
@@ -448,23 +448,23 @@ function renderPredictionProgress(data) {
     const computedPercent = computeTranscribePercent(status, progress);
     const currentElapsed = Math.round((Date.now() - startTime) / 1000);
     const elapsedValue = (typeof progress.elapsedSec === 'number' && progress.elapsedSec > 0) ? progress.elapsedSec : currentElapsed;
-    const elapsedSec = `${getCurrentLang() === 'zh' ? '，已用时 ' : ', elapsed '}${elapsedValue}s`;
-    setTranscribeProgress(computedPercent, `${t('transcribe-status').split('：')[0]}：${mappedStatus} (${computedPercent}%)${elapsedSec}`);
+    const elapsedSec = `${t('elapsed')}${elapsedValue}s`;
+    setTranscribeProgress(computedPercent, `${t('transcribe-status').split(t('colon'))[0]}${t('colon')}${mappedStatus} (${computedPercent}%)${elapsedSec}`);
 
     const logsTail = Array.isArray(progress.logsTail) ? progress.logsTail : [];
     const extras = [];
     if (logsTail.length > 0) {
-        extras.push(`最近日志：${logsTail.join(' | ')}`);
+        extras.push(`${t('logs-recent')}${t('colon')}${logsTail.join(' | ')}`);
     }
     if (progress.cleanup && typeof progress.cleanup === 'object') {
         const c = progress.cleanup;
         const removed = Number(c.removed_prompt_only_segments || 0) + Number(c.removed_hallucination_segments || 0) + Number(c.removed_noise_segments || 0);
         const cleaned = Number(c.cleaned_prompt_fragments || 0) + Number(c.cleaned_hallucination_fragments || 0);
-        extras.push(`后处理：清理 ${cleaned}，删除 ${removed}`);
+        extras.push(t('process-cleanup', { cleaned, removed }));
     }
     if (progress.quality && typeof progress.quality === 'object') {
         const warnings = Array.isArray(progress.quality.warnings) ? progress.quality.warnings : [];
-        if (warnings.length > 0) extras.push(`质量告警：${warnings[0]}`);
+        if (warnings.length > 0) extras.push(`${t('quality-warning')}${t('colon')}${warnings[0]}`);
     }
     if (progress.secondPass && typeof progress.secondPass === 'object') {
         const sp = progress.secondPass;
@@ -473,7 +473,7 @@ function renderPredictionProgress(data) {
         const hasPercent = Number.isFinite(spPercent);
         const rangeCount = Array.isArray(sp.ranges) ? sp.ranges.length : 0;
         const spStatusText = hasPercent ? `${spStatus} (${Math.max(0, Math.min(100, Math.round(spPercent)))}%)` : spStatus;
-        if (spStatusText) extras.push(`${getCurrentLang() === 'zh' ? '二次修复' : 'Second Pass'}：${spStatusText}${rangeCount > 0 ? (getCurrentLang() === 'zh' ? `，窗口 ${rangeCount}` : `, window ${rangeCount}`) : ''}`);
+        if (spStatusText) extras.push(`${t('second-pass')}${t('colon')}${spStatusText}${rangeCount > 0 ? `${t('second-pass-window')}${rangeCount}` : ''}`);
     }
 }
 
@@ -514,7 +514,7 @@ function finishProcess(output) {
     const elapsedSec = Math.round((Date.now() - startTime) / 1000);
     trackTranscriptionComplete(elapsedSec, true);
     updateStatus('process', t('status-done'));
-    setTranscribeProgress(100, `${t('transcribe-status').split('：')[0]}：${t('transcribe-finished')} (100%)`);
+    setTranscribeProgress(100, `${t('transcribe-status').split(t('colon'))[0]}${t('colon')}${t('transcribe-finished')} (100%)`);
 
     let mdContent = '';
     let jsonContent = '{}';
@@ -562,7 +562,7 @@ function finishProcess(output) {
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <polyline points="20 6 9 17 4 12"></polyline>
                     </svg>
-                    <span>${getCurrentLang() === 'zh' ? '已复制' : 'Copied'}</span>
+                    <span>${t('copied')}</span>
                 `;
                 copyTranscriptBtn.classList.remove('secondary');
                 copyTranscriptBtn.classList.add('primary');
@@ -644,7 +644,7 @@ function updateStatus(stepMode, text) {
 }
 
 function showError(msg) {
-    errorMessage.textContent = `错误: ${msg}`;
+    errorMessage.textContent = `${t('error-prefix')}${msg}`;
     errorMessage.classList.remove('hidden');
     trackError(msg, 'ui');
 }
@@ -839,7 +839,7 @@ function renderHistoryList() {
             e.stopPropagation();
             modalContext = 'delete-history';
             modalTitle.textContent = t('record-remove-confirm');
-            confirmOkBtn.textContent = '确定';
+            confirmOkBtn.textContent = t('confirm-ok-label');
             confirmModal.dataset.deleteId = record.id;
             confirmModal.classList.remove('hidden');
         });
@@ -883,7 +883,7 @@ function viewHistoryItem(id) {
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <polyline points="20 6 9 17 4 12"></polyline>
                     </svg>
-                    <span>${getCurrentLang() === 'zh' ? '已复制' : 'Copied'}</span>
+                    <span>${t('copied')}</span>
                 `;
                 copyTranscriptBtn.classList.remove('secondary');
                 copyTranscriptBtn.classList.add('primary');
@@ -1002,7 +1002,7 @@ function initialize() {
             e.stopPropagation();
             modalContext = 'clear-history';
             modalTitle.textContent = t('history-clear-confirm');
-            confirmOkBtn.textContent = '确定';
+            confirmOkBtn.textContent = t('confirm-ok-label');
             confirmModal.classList.remove('hidden');
         });
     }
@@ -1017,7 +1017,7 @@ function initialize() {
         e.stopPropagation();
         modalContext = 'remove';
         modalTitle.textContent = t('record-remove-confirm');
-        confirmOkBtn.textContent = (getCurrentLang() === 'zh' ? '确定移除' : 'Remove');
+        confirmOkBtn.textContent = t('confirm-remove-label');
         confirmModal.classList.remove('hidden');
     });
 

@@ -60,7 +60,32 @@ export const appI18n = {
         'history-deleted': '已删除',
         'quota-admin': '⭐ 管理员模式已开启',
         'quota-label': '本周剩余可转写：',
-        'quota-unit': '分钟'
+        'quota-unit': '分钟',
+        'recording-name-prefix': '录音_',
+        'error-file-empty': '文件为空，请重新选择',
+        'error-file-too-large': '文件过大，当前直传上限约 100MB',
+        'error-file-format': '文件格式不支持',
+        'error-duration-limit': '音频长度超过 60 分钟限制。',
+        'elapsed': '，已用时 ',
+        'logs-recent': '最近日志',
+        'process-cleanup': '后处理：清理 {cleaned}，删除 {removed}',
+        'quality-warning': '质量告警',
+        'second-pass': '二次修复',
+        'second-pass-window': '，窗口 ',
+        'copied': '已复制',
+        'error-prefix': '错误: ',
+        'confirm-ok-label': '确定',
+        'confirm-remove-label': '确定移除',
+        'error-timeout': '转写超时，请稍后重试',
+        'colon': '：',
+        'play': '播放',
+        'download-audio': '下载音频',
+        'error-api-token': '获取上传凭证失败',
+        'error-op-failed': '操作失败',
+        'error-op-canceled': '操作被取消',
+        'error-network': '网络请求异常',
+        'error-parse': '解析异常',
+        'error-no-url': '未获取到文件地址'
     },
     en: {
         'app-title': 'FlashNotes',
@@ -119,7 +144,32 @@ export const appI18n = {
         'history-deleted': 'Deleted',
         'quota-admin': '⭐ Admin bypass active',
         'quota-label': 'Weekly unused: ',
-        'quota-unit': 'mins'
+        'quota-unit': 'mins',
+        'recording-name-prefix': 'Record_',
+        'error-file-empty': 'File is empty, please select again',
+        'error-file-too-large': 'File too large, limit is 100MB',
+        'error-file-format': 'Unsupported file format',
+        'error-duration-limit': 'Audio length exceeds 60 minutes limit.',
+        'elapsed': ', elapsed ',
+        'logs-recent': 'Recent logs',
+        'process-cleanup': 'Cleanup: {cleaned} cleaned, {removed} removed',
+        'quality-warning': 'Quality warning',
+        'second-pass': 'Second Pass',
+        'second-pass-window': ', window ',
+        'copied': 'Copied',
+        'error-prefix': 'Error: ',
+        'confirm-ok-label': 'OK',
+        'confirm-remove-label': 'Remove',
+        'error-timeout': 'Transcription timed out, please try again later',
+        'colon': ': ',
+        'play': 'Play',
+        'download-audio': 'Download Audio',
+        'error-api-token': 'Failed to get upload token',
+        'error-op-failed': 'Operation failed',
+        'error-op-canceled': 'Operation canceled',
+        'error-network': 'Network request error',
+        'error-parse': 'Parse error',
+        'error-no-url': 'File URL not found'
     }
 };
 
@@ -145,16 +195,22 @@ export function setAppLang(lang) {
     localStorage.setItem('appLang', normalized);
 }
 
-export function t(key) {
+export function t(key, params = {}) {
     if (!key) return '';
     const k = String(key).trim();
+    let text = k;
     if (appI18n[currentAppLang] && appI18n[currentAppLang][k]) {
-        return appI18n[currentAppLang][k];
+        text = appI18n[currentAppLang][k];
+    } else if (appI18n['en'] && appI18n['en'][k]) {
+        text = appI18n['en'][k];
     }
-    if (appI18n['en'] && appI18n['en'][k]) {
-        return appI18n['en'][k];
+
+    if (params && typeof params === 'object') {
+        Object.keys(params).forEach(p => {
+            text = text.replace(new RegExp(`\\{${p}\\}`, 'g'), params[p]);
+        });
     }
-    return k;
+    return text;
 }
 
 export function updateDOMTranslations() {

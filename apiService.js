@@ -2,6 +2,7 @@
  * API Service for manual-whisper
  */
 import { sleep } from './utils.js';
+import { t } from './i18n.js';
 
 const POLL_TIMEOUT_MS = 30 * 60 * 1000;
 const INITIAL_POLL_INTERVAL_MS = 3000;
@@ -39,10 +40,10 @@ async function uploadViaVercelBlob(file, onProgress) {
     });
     if (!tokenRes.ok) {
         const err = await safeJson(tokenRes);
-        throw new Error(`[${tokenRes.status}] ${err.error || '获取上传凭证失败'}`);
+        throw new Error(`[${tokenRes.status}] ${err.error || t('error-api-token')}`);
     }
     const { clientToken } = await tokenRes.json();
-    if (!clientToken) throw new Error('获取上传凭证失败');
+    if (!clientToken) throw new Error(t('error-api-token'));
 
     // Step 2: Upload directly to Vercel Blob CDN using the client token
     // The URL format is: https://blob.vercel-storage.com/<pathname>?<params>
@@ -61,24 +62,24 @@ async function uploadViaVercelBlob(file, onProgress) {
             }
         };
 
-        xhr.onerror = () => reject(new Error('操作失败'));
-        xhr.onabort = () => reject(new Error('操作被取消'));
+        xhr.onerror = () => reject(new Error(t('error-op-failed')));
+        xhr.onabort = () => reject(new Error(t('error-op-canceled')));
 
         xhr.onload = () => {
             if (xhr.status < 200 || xhr.status >= 300) {
-                let detail = '操作失败';
+                let detail = t('error-op-failed');
                 try { detail = JSON.parse(xhr.responseText)?.error || detail; } catch { /* ignore */ }
                 reject(new Error(`[${xhr.status}] ${detail}`));
                 return;
             }
             let data;
             try { data = JSON.parse(xhr.responseText); } catch {
-                reject(new Error('网络请求异常'));
+                reject(new Error(t('error-network')));
                 return;
             }
             const fileUrl = data?.url || data?.downloadUrl;
             if (!fileUrl) {
-                reject(new Error('解析异常：未获取到文件地址'));
+                reject(new Error(`${t('error-parse')}${t('colon')}${t('error-no-url')}`));
                 return;
             }
             resolve(fileUrl);
@@ -104,13 +105,13 @@ function uploadViaVercel(file, onProgress) {
             }
         };
 
-        xhr.onerror = () => reject(new Error('操作失败'));
-        xhr.onabort = () => reject(new Error('操作被取消'));
+        xhr.onerror = () => reject(new Error(t('error-op-failed')));
+        xhr.onabort = () => reject(new Error(t('error-op-canceled')));
 
         xhr.onload = () => {
             if (xhr.status < 200 || xhr.status >= 300) {
                 const payload = safeParseXhrJson(xhr);
-                reject(new Error(`[${xhr.status}] ${payload.error || '解析失败'}`));
+                reject(new Error(`[${xhr.status}] ${payload.error || t('error-parse')}`));
                 return;
             }
 
@@ -125,7 +126,7 @@ function uploadViaVercel(file, onProgress) {
             }
 
             if (!uploadData.fileUrl) {
-                reject(new Error('解析异常'));
+                reject(new Error(t('error-parse')));
                 return;
             }
 
@@ -165,7 +166,7 @@ export async function pollTranscriptionStatus(predictionId, onUpdate) {
 
     while (true) {
         if (Date.now() - start > POLL_TIMEOUT_MS) {
-            throw new Error('转写超时，请稍后重试');
+            throw new Error(t('error-timeout'));
         }
 
         const res = await fetch(`${VERCEL_API_BASE}/api/transcribe?id=${encodeURIComponent(predictionId)}`, {

@@ -756,7 +756,8 @@ function renderQuota(data) {
         const totalMin = Math.round(data.limit / 60);
         const remainingMin = Math.max(0, totalMin - usedMin);
 
-        quotaText.textContent = `${t('quota-label')}${remainingMin} / ${totalMin} ${t('quota-unit')}`;
+        const label = window.innerWidth < 480 ? '' : t('quota-label');
+        quotaText.textContent = `${label}${remainingMin} / ${totalMin} ${t('quota-unit')}`;
 
         if (remainingMin <= 0) {
             quotaDisplay.style.color = '#ef4444';

@@ -14,9 +14,76 @@ const VERCEL_API_BASE = typeof window !== 'undefined' && (window.location.hostna
     : '';
 
 export async function uploadFile(file, onProgress) {
+    // On .web.app domains, upload directly to Vercel Blob to bypass Vercel's 4.5MB body limit.
+    // On local dev (vercel dev), use the Vercel proxy which has no such limit.
+    if (VERCEL_API_BASE) {
+        return uploadViaVercelBlob(file, onProgress);
+    }
+    return uploadViaVercel(file, onProgress);
+}
+
+async function uploadViaVercelBlob(file, onProgress) {
+    // Step 1: Request a client upload token from our server (tiny request, no body limit)
+    const tokenRes = await fetch(`${VERCEL_API_BASE}/api/blob-upload`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'blob.generate-client-token', payload: { pathname: file.name, callbackUrl: `${VERCEL_API_BASE}/api/blob-upload` } }),
+    });
+    if (!tokenRes.ok) {
+        const err = await safeJson(tokenRes);
+        throw new Error(`[${tokenRes.status}] ${err.error || '获取上传凭证失败'}`);
+    }
+    const { clientToken } = await tokenRes.json();
+    if (!clientToken) throw new Error('获取上传凭证失败');
+
+    // Step 2: Upload directly to Vercel Blob CDN using the client token
+    // The URL format is: https://blob.vercel-storage.com/<pathname>?<params>
+    const uploadUrl = `https://blob.vercel-storage.com/${encodeURIComponent(file.name)}`;
+
     return new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
-        xhr.open('POST', `${VERCEL_API_BASE}/api/upload`);
+        xhr.open('PUT', uploadUrl);
+        xhr.setRequestHeader('Authorization', `Bearer ${clientToken}`);
+        xhr.setRequestHeader('x-api-version', '7');
+        xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+
+        xhr.upload.onprogress = (event) => {
+            if (event.lengthComputable && typeof onProgress === 'function') {
+                onProgress(event.loaded, event.total);
+            }
+        };
+
+        xhr.onerror = () => reject(new Error('传输失败'));
+        xhr.onabort = () => reject(new Error('传输被取消'));
+
+        xhr.onload = () => {
+            if (xhr.status < 200 || xhr.status >= 300) {
+                let detail = '传输失败';
+                try { detail = JSON.parse(xhr.responseText)?.error || detail; } catch { /* ignore */ }
+                reject(new Error(`[${xhr.status}] ${detail}`));
+                return;
+            }
+            let data;
+            try { data = JSON.parse(xhr.responseText); } catch {
+                reject(new Error('数据传输异常'));
+                return;
+            }
+            const fileUrl = data?.url || data?.downloadUrl;
+            if (!fileUrl) {
+                reject(new Error('数据传输异常：未获取到文件地址'));
+                return;
+            }
+            resolve(fileUrl);
+        };
+
+        xhr.send(file);
+    });
+}
+
+function uploadViaVercel(file, onProgress) {
+    return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', `/api/upload`);
         xhr.responseType = 'json';
         xhr.setRequestHeader('x-file-name', encodeURIComponent(file.name));
         xhr.setRequestHeader('x-file-content-type', file.type || 'application/octet-stream');

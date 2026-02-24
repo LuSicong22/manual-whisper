@@ -3,15 +3,6 @@ import crypto from "node:crypto";
 import { getEnv } from "./_localEnv.js";
 import { handlePreflight, setCorsHeaders } from "./_cors.js";
 
-// Disable Vercel's default body parser (4.5MB limit).
-// The handler reads the raw body stream manually via readRequestBody(),
-// which supports up to MAX_UPLOAD_BYTES (100MB).
-export const config = {
-    api: {
-        bodyParser: false,
-    },
-};
-
 const REPLICATE_API_TOKEN = getEnv("REPLICATE_API_TOKEN");
 const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
 

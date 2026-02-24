@@ -7,6 +7,12 @@
     <title data-i18n="app-title">闪记</title>
     <link rel="icon" type="image/png" href="logo.png">
     <link rel="stylesheet" href="style.css">
+    <style>
+        html.lang-loading [data-i18n],
+        html.lang-loading .dropdown-item[data-value] {
+            visibility: hidden !important;
+        }
+    </style>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <!-- Google Analytics 4 -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-X7VZ3BYVZM"></script>
@@ -55,8 +61,8 @@
                         </svg>
                     </div>
                     <div class="dropdown-menu hidden" id="app-lang-options">
-                        <div class="dropdown-item" data-value="zh">简体中文 (ZH)</div>
-                        <div class="dropdown-item active" data-value="en">English (EN)</div>
+                        <div class="dropdown-item" data-value="zh" data-i18n="app-lang-zh">简体中文 (ZH)</div>
+                        <div class="dropdown-item active" data-value="en" data-i18n="app-lang-en">English (EN)</div>
                     </div>
                 </div>
             </div>

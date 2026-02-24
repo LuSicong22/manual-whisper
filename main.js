@@ -200,27 +200,28 @@ function updateAppLanguageUI(lang) {
 
     document.getElementById('record-label').textContent = recorder.isRecording ? t('record-stop') : t('record-start');
 
-    // Sync transcription language if no saved preference or if we want it to follow app lang
-    const savedTransLang = localStorage.getItem('language');
+    // Sync transcription language if no manual choice has been saved yet
+    const savedTransLang = localStorage.getItem('trans_lang');
     if (!savedTransLang) {
-        currentTranscriptionLanguage = lang;
-        languageItems.forEach(item => {
-            if (item.dataset.value === lang) {
-                item.classList.add('active');
-                languageSelectLabel.textContent = item.textContent;
-            } else {
-                item.classList.remove('active');
-            }
-        });
+        updateTranscriptionLanguageUI(lang, false);
     } else {
-        // Just refresh label for current active item (it might have been translated)
-        const activeItem = languageOptions.querySelector('.dropdown-item.active');
-        if (activeItem) {
-            languageSelectLabel.textContent = activeItem.textContent;
-        }
+        updateTranscriptionLanguageUI(currentTranscriptionLanguage, false);
     }
-
     renderQuota(lastQuotaData);
+}
+
+function updateTranscriptionLanguageUI(langValue, save = true) {
+    currentTranscriptionLanguage = langValue;
+    if (save) {
+        localStorage.setItem('trans_lang', langValue);
+    }
+    languageItems.forEach(item => {
+        const isActive = item.dataset.value === langValue;
+        item.classList.toggle('active', isActive);
+        if (isActive) {
+            languageSelectLabel.textContent = item.textContent;
+        }
+    });
 }
 
 function updateSelectedFile(file, source = 'upload') {
@@ -384,7 +385,7 @@ async function startTranscriptionTask(file, language) {
         return;
     }
 
-    localStorage.setItem('language', language);
+    updateTranscriptionLanguageUI(language);
     running = true;
     setControlsDisabled(true);
 
@@ -934,26 +935,11 @@ function initialize() {
         });
     });
 
-    const savedLangPreference = localStorage.getItem('language');
-    if (savedLangPreference) {
-        const item = Array.from(languageItems).find(el => el.dataset.value === savedLangPreference);
-        if (item) {
-            currentTranscriptionLanguage = savedLangPreference;
-            languageItems.forEach(el => el.classList.remove('active'));
-            item.classList.add('active');
-            languageSelectLabel.textContent = item.textContent;
-        }
+    const savedTransLang = localStorage.getItem('trans_lang');
+    if (savedTransLang) {
+        updateTranscriptionLanguageUI(savedTransLang, false);
     } else {
-        // No saved preference, use current app lang
-        const currentAppLang = getCurrentLang();
-        currentTranscriptionLanguage = currentAppLang;
-        languageItems.forEach(el => {
-            const isActive = el.dataset.value === currentAppLang;
-            el.classList.toggle('active', isActive);
-            if (isActive) {
-                languageSelectLabel.textContent = el.textContent;
-            }
-        });
+        updateTranscriptionLanguageUI(getCurrentLang(), false);
     }
 
     languageSelectTrigger.addEventListener('click', (e) => {
@@ -966,10 +952,7 @@ function initialize() {
     languageItems.forEach(item => {
         item.addEventListener('click', (e) => {
             e.stopPropagation();
-            currentTranscriptionLanguage = item.dataset.value;
-            languageSelectLabel.textContent = item.textContent;
-            languageItems.forEach(el => el.classList.remove('active'));
-            item.classList.add('active');
+            updateTranscriptionLanguageUI(item.dataset.value);
             languageOptions.classList.add('hidden');
         });
     });

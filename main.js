@@ -18,7 +18,7 @@ const removeFileBtn = document.getElementById('remove-file-btn');
 const languageSelectTrigger = document.getElementById('language-select-trigger');
 const languageSelectLabel = document.getElementById('language-select-label');
 const languageOptions = document.getElementById('language-options');
-const languageItems = document.querySelectorAll('.dropdown-item');
+const languageItems = languageOptions.querySelectorAll('.dropdown-item');
 const startBtn = document.getElementById('start-btn');
 const progressArea = document.getElementById('progress-area');
 const resultArea = document.getElementById('result-area');
@@ -94,7 +94,7 @@ let currentFileBaseName = 'transcript';
 let selectedFile = null;
 let running = false;
 let transcribePercentHint = 0;
-let currentTranscriptionLanguage = 'zh+en';
+let currentTranscriptionLanguage = getCurrentLang(); // Default to app language
 let modalContext = null; // 'stop' or 'remove'
 let lastQuotaData = null;
 
@@ -200,10 +200,24 @@ function updateAppLanguageUI(lang) {
 
     document.getElementById('record-label').textContent = recorder.isRecording ? t('record-stop') : t('record-start');
 
-    // Refresh transcription language label
-    const activeItem = document.querySelector('#language-options .dropdown-item.active');
-    if (activeItem) {
-        languageSelectLabel.textContent = activeItem.textContent;
+    // Sync transcription language if no saved preference or if we want it to follow app lang
+    const savedTransLang = localStorage.getItem('language');
+    if (!savedTransLang) {
+        currentTranscriptionLanguage = lang;
+        languageItems.forEach(item => {
+            if (item.dataset.value === lang) {
+                item.classList.add('active');
+                languageSelectLabel.textContent = item.textContent;
+            } else {
+                item.classList.remove('active');
+            }
+        });
+    } else {
+        // Just refresh label for current active item (it might have been translated)
+        const activeItem = languageOptions.querySelector('.dropdown-item.active');
+        if (activeItem) {
+            languageSelectLabel.textContent = activeItem.textContent;
+        }
     }
 
     renderQuota(lastQuotaData);
@@ -925,10 +939,21 @@ function initialize() {
         const item = Array.from(languageItems).find(el => el.dataset.value === savedLangPreference);
         if (item) {
             currentTranscriptionLanguage = savedLangPreference;
-            languageSelectLabel.textContent = item.textContent;
             languageItems.forEach(el => el.classList.remove('active'));
             item.classList.add('active');
+            languageSelectLabel.textContent = item.textContent;
         }
+    } else {
+        // No saved preference, use current app lang
+        const currentAppLang = getCurrentLang();
+        currentTranscriptionLanguage = currentAppLang;
+        languageItems.forEach(el => {
+            const isActive = el.dataset.value === currentAppLang;
+            el.classList.toggle('active', isActive);
+            if (isActive) {
+                languageSelectLabel.textContent = el.textContent;
+            }
+        });
     }
 
     languageSelectTrigger.addEventListener('click', (e) => {

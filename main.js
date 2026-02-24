@@ -920,6 +920,7 @@ function initialize() {
     const appLangItems = appLangOptions.querySelectorAll('.dropdown-item');
 
     updateAppLanguageUI(getCurrentLang());
+    document.documentElement.classList.remove('lang-loading');
 
     appLangTrigger.addEventListener('click', (e) => {
         e.stopPropagation();

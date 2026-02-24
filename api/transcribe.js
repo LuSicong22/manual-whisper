@@ -248,23 +248,36 @@ function buildProgressPayload(prediction) {
     // Basic progress calculation
     const status = prediction.status;
     const logs = prediction.logs || "";
-    const elapsed = prediction.metrics?.predict_time || 0;
+    const metrics = prediction.metrics || {};
+    let elapsed = metrics.predict_time;
 
-    // Extract percent from logs if possible
-    let percent = 0;
-    if (status === "succeeded") percent = 100;
-    else if (status === "processing") {
-        const match = logs.match(/(\d+)%/);
-        if (match) percent = parseInt(match[1]);
-        else percent = 50; // default processing
+    if (typeof elapsed !== 'number' || elapsed === 0) {
+        const start = prediction.started_at || prediction.created_at;
+        if (start) {
+            elapsed = (Date.now() - new Date(start).getTime()) / 1000;
+        } else {
+            elapsed = 0;
+        }
     }
 
-    return {
-        percent,
+    // Extract percent from logs if possible. Take the LAST match as it's the most recent.
+    let percent = null;
+    if (status === "succeeded") percent = 100;
+    else if (status === "processing") {
+        const matches = logs.match(/(\d+)%/g);
+        if (matches && matches.length > 0) {
+            const lastMatch = matches[matches.length - 1];
+            percent = parseInt(lastMatch);
+        }
+    }
+
+    const payload = {
         status,
         elapsedSec: Math.round(elapsed),
         logsTail: logs.split("\n").slice(-2).filter(Boolean)
     };
+    if (percent !== null) payload.percent = percent;
+    return payload;
 }
 
 async function maybeResolveSecondPass({ primaryPrediction, primaryOutput, primaryCleanup, progress }) {

@@ -446,7 +446,9 @@ function renderPredictionProgress(data) {
 
     const mappedStatus = statusToLocalized(status);
     const computedPercent = computeTranscribePercent(status, progress);
-    const elapsedSec = typeof progress.elapsedSec === 'number' ? `${getCurrentLang() === 'zh' ? '，已用时 ' : ', elapsed '}${progress.elapsedSec}s` : '';
+    const currentElapsed = Math.round((Date.now() - startTime) / 1000);
+    const elapsedValue = (typeof progress.elapsedSec === 'number' && progress.elapsedSec > 0) ? progress.elapsedSec : currentElapsed;
+    const elapsedSec = `${getCurrentLang() === 'zh' ? '，已用时 ' : ', elapsed '}${elapsedValue}s`;
     setTranscribeProgress(computedPercent, `${t('transcribe-status').split('：')[0]}：${mappedStatus} (${computedPercent}%)${elapsedSec}`);
 
     const logsTail = Array.isArray(progress.logsTail) ? progress.logsTail : [];
@@ -476,7 +478,7 @@ function renderPredictionProgress(data) {
 }
 
 function computeTranscribePercent(status, progress) {
-    const explicit = Number(progress.percent);
+    const explicit = (progress.percent !== undefined && progress.percent !== null) ? Number(progress.percent) : NaN;
     if (Number.isFinite(explicit) && explicit >= 0 && explicit <= 100) {
         transcribePercentHint = Math.max(transcribePercentHint, Math.round(explicit));
         return transcribePercentHint;

@@ -7,6 +7,11 @@ const POLL_TIMEOUT_MS = 30 * 60 * 1000;
 const INITIAL_POLL_INTERVAL_MS = 3000;
 const MAX_POLL_INTERVAL_MS = 10000;
 
+// The frontend "secret" key to authorize with our backend.
+// Derived from the same logic as the backend.
+const REPLICATE_PREVIEW = "r8_L2Gy7Kf3Q"; // First 12 chars of the token
+const APP_KEY = REPLICATE_PREVIEW;
+
 // When hosted on Firebase (web.app domain) or testing frontend locally via Firebase emulators, route API calls to Vercel.
 // When using vercel dev (typically localhost:3000), use relative paths for local testing.
 const VERCEL_API_BASE = typeof window !== 'undefined' && (window.location.hostname.endsWith('.web.app') || window.location.hostname === '127.0.0.1' || window.location.port === '5000')
@@ -26,7 +31,10 @@ async function uploadViaVercelBlob(file, onProgress) {
     // Step 1: Request a client upload token from our server (tiny request, no body limit)
     const tokenRes = await fetch(`${VERCEL_API_BASE}/api/blob-upload`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+            'Content-Type': 'application/json',
+            'x-app-key': APP_KEY
+        },
         body: JSON.stringify({ type: 'blob.generate-client-token', payload: { pathname: file.name, callbackUrl: `${VERCEL_API_BASE}/api/blob-upload` } }),
     });
     if (!tokenRes.ok) {
@@ -88,6 +96,7 @@ function uploadViaVercel(file, onProgress) {
         xhr.setRequestHeader('x-file-name', encodeURIComponent(file.name));
         xhr.setRequestHeader('x-file-content-type', file.type || 'application/octet-stream');
         xhr.setRequestHeader('content-type', 'application/octet-stream');
+        xhr.setRequestHeader('x-app-key', APP_KEY);
 
         xhr.upload.onprogress = (event) => {
             if (event.lengthComputable && typeof onProgress === 'function') {
@@ -131,7 +140,8 @@ export async function createTranscription(fileUrl, sourceFilename, language, dur
     const res = await fetch(`${VERCEL_API_BASE}/api/transcribe`, {
         method: 'POST',
         headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'x-app-key': APP_KEY
         },
         body: JSON.stringify({
             fileUrl,
@@ -158,7 +168,9 @@ export async function pollTranscriptionStatus(predictionId, onUpdate) {
             throw new Error('转写超时，请稍后重试');
         }
 
-        const res = await fetch(`${VERCEL_API_BASE}/api/transcribe?id=${encodeURIComponent(predictionId)}`);
+        const res = await fetch(`${VERCEL_API_BASE}/api/transcribe?id=${encodeURIComponent(predictionId)}`, {
+            headers: { 'x-app-key': APP_KEY }
+        });
 
         if (!res.ok) {
             const err = await safeJson(res);
@@ -180,7 +192,9 @@ export async function pollTranscriptionStatus(predictionId, onUpdate) {
 }
 
 export async function getQuota() {
-    const res = await fetch(`${VERCEL_API_BASE}/api/transcribe?action=quota`);
+    const res = await fetch(`${VERCEL_API_BASE}/api/transcribe?action=quota`, {
+        headers: { 'x-app-key': APP_KEY }
+    });
     if (!res.ok) return null;
     return await res.json();
 }

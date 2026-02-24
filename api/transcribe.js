@@ -10,7 +10,7 @@ import {
     VALID_LANGUAGES
 } from "./lib/replicateClient.js";
 import { postProcessSegments, formatToMarkdown } from "./lib/processor.js";
-import { getEnv } from "./_localEnv.js";
+import { getEnv, validateAppKey } from "./_localEnv.js";
 import { handlePreflight, setCorsHeaders } from "./_cors.js";
 
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
@@ -36,6 +36,10 @@ export default async function handler(request, response) {
     if (handlePreflight(request, response)) return;
     setCorsHeaders(request, response);
     pruneState();
+
+    if (!validateAppKey(request)) {
+        return response.status(403).json({ error: "Unauthorized access" });
+    }
 
     if (!REPLICATE_API_TOKEN) {
         return response.status(500).json({ error: "Missing REPLICATE_API_TOKEN" });

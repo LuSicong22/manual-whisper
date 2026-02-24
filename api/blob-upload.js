@@ -5,6 +5,7 @@
  */
 import { handleUpload } from '@vercel/blob/client';
 import { handlePreflight, setCorsHeaders } from './_cors.js';
+import { validateAppKey } from './_localEnv.js';
 
 const ALLOWED_CONTENT_TYPES = [
     'audio/mpeg', 'audio/mp4', 'audio/wav', 'audio/x-wav',
@@ -20,6 +21,10 @@ export default async function handler(request, response) {
 
     if (request.method !== 'POST') {
         return response.status(405).json({ error: 'Method not allowed' });
+    }
+
+    if (!validateAppKey(request)) {
+        return response.status(403).json({ error: "Unauthorized access" });
     }
 
     try {

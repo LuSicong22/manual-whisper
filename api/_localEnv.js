@@ -14,6 +14,18 @@ export function getEnv(name) {
     return normalizeValue(cleanEnvValue(cachedLocalEnv[name], name));
 }
 
+/**
+ * Basic security check to ensure requests come from our authorized frontend.
+ */
+export function validateAppKey(request) {
+    const key = request.headers['x-app-key'];
+    // We use a derivation of the Replicate token as a simple internal "secret"
+    const replicateToken = getEnv("REPLICATE_API_TOKEN") || "";
+    // Using the first 12 chars as the app key
+    const expectedKey = replicateToken.slice(0, 12);
+    return key && key === expectedKey;
+}
+
 function loadLocalEnv() {
     const result = {};
     const candidates = [

@@ -4,8 +4,21 @@
  */
 
 
+const ALLOWED_ORIGINS = [
+    'https://flashnotes-ai.web.app',
+    'https://flashnotes.web.app',
+    'https://manual-whisper-test.web.app',
+    'http://localhost:3000',
+    'http://localhost:5000',
+    'http://127.0.0.1:3000',
+    'http://127.0.0.1:5000'
+];
+
 export function setCorsHeaders(request, response) {
-    response.setHeader("Access-Control-Allow-Origin", "*");
+    const origin = request.headers.origin;
+    if (ALLOWED_ORIGINS.includes(origin)) {
+        response.setHeader("Access-Control-Allow-Origin", origin);
+    }
     response.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
     response.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-app-key, x-file-name, x-file-content-type");
 }

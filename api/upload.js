@@ -1,6 +1,6 @@
 import Replicate from "replicate";
 import crypto from "node:crypto";
-import { getEnv } from "./_localEnv.js";
+import { getEnv, validateAppKey } from "./_localEnv.js";
 import { handlePreflight, setCorsHeaders } from "./_cors.js";
 
 const REPLICATE_API_TOKEN = getEnv("REPLICATE_API_TOKEN");
@@ -16,6 +16,10 @@ export default async function handler(request, response) {
 
     if (request.method !== "POST") {
         return response.status(405).json({ error: "Method not allowed" });
+    }
+
+    if (!validateAppKey(request)) {
+        return response.status(403).json({ error: "Unauthorized access" });
     }
 
     if (!REPLICATE_API_TOKEN) {

@@ -120,7 +120,7 @@ function mapUploadError(error) {
         return { status: 402, message: "Replicate 余额不足，请充值后重试" };
     }
     if (status === 413) {
-        return { status: 413, message: "传输文件过大（当前上限约 100MB）" };
+        return { status: 413, message: "上传音频文件过大（当前上限约 100MB）" };
     }
     if (status === 429) {
         return { status: 429, message: "请求过于频繁，请稍后重试" };
@@ -136,9 +136,9 @@ function mapUploadError(error) {
     }
 
     if (detail) {
-        return { status: 500, message: `Upload failed: ${truncateText(detail, 180)}` };
+        return { status: 500, message: `Processing failed: ${truncateText(detail, 180)}` };
     }
-    return { status: 500, message: "Upload failed" };
+    return { status: 500, message: "Processing failed" };
 }
 
 function extractErrorDetail(error) {

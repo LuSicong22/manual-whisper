@@ -53,24 +53,24 @@ async function uploadViaVercelBlob(file, onProgress) {
             }
         };
 
-        xhr.onerror = () => reject(new Error('传输失败'));
-        xhr.onabort = () => reject(new Error('传输被取消'));
+        xhr.onerror = () => reject(new Error('操作失败'));
+        xhr.onabort = () => reject(new Error('操作被取消'));
 
         xhr.onload = () => {
             if (xhr.status < 200 || xhr.status >= 300) {
-                let detail = '传输失败';
+                let detail = '操作失败';
                 try { detail = JSON.parse(xhr.responseText)?.error || detail; } catch { /* ignore */ }
                 reject(new Error(`[${xhr.status}] ${detail}`));
                 return;
             }
             let data;
             try { data = JSON.parse(xhr.responseText); } catch {
-                reject(new Error('数据传输异常'));
+                reject(new Error('网络请求异常'));
                 return;
             }
             const fileUrl = data?.url || data?.downloadUrl;
             if (!fileUrl) {
-                reject(new Error('数据传输异常：未获取到文件地址'));
+                reject(new Error('解析异常：未获取到文件地址'));
                 return;
             }
             resolve(fileUrl);
@@ -95,13 +95,13 @@ function uploadViaVercel(file, onProgress) {
             }
         };
 
-        xhr.onerror = () => reject(new Error('传输失败'));
-        xhr.onabort = () => reject(new Error('传输被取消'));
+        xhr.onerror = () => reject(new Error('操作失败'));
+        xhr.onabort = () => reject(new Error('操作被取消'));
 
         xhr.onload = () => {
             if (xhr.status < 200 || xhr.status >= 300) {
                 const payload = safeParseXhrJson(xhr);
-                reject(new Error(`[${xhr.status}] ${payload.error || '传输失败'}`));
+                reject(new Error(`[${xhr.status}] ${payload.error || '解析失败'}`));
                 return;
             }
 
@@ -110,13 +110,13 @@ function uploadViaVercel(file, onProgress) {
                 try {
                     uploadData = JSON.parse(xhr.responseText);
                 } catch {
-                    reject(new Error('数据传输异常'));
+                    reject(new Error('网络请求异常'));
                     return;
                 }
             }
 
             if (!uploadData.fileUrl) {
-                reject(new Error('数据传输异常'));
+                reject(new Error('解析异常'));
                 return;
             }
 

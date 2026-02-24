@@ -129,7 +129,11 @@ const normalizeLang = (lang) => {
     return appI18n[base] ? base : 'en';
 };
 
-let currentAppLang = normalizeLang(localStorage.getItem('appLang'));
+const isWeChat = /MicroMessenger/i.test(navigator.userAgent);
+const storedLang = localStorage.getItem('appLang');
+let currentAppLang = storedLang
+    ? normalizeLang(storedLang)
+    : (isWeChat ? 'zh' : normalizeLang(null));
 
 export function getCurrentLang() {
     return currentAppLang;

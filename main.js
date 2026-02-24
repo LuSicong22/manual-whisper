@@ -96,6 +96,7 @@ let running = false;
 let transcribePercentHint = 0;
 let currentTranscriptionLanguage = 'zh+en';
 let modalContext = null; // 'stop' or 'remove'
+let lastQuotaData = null;
 
 // --- Initialize Components ---
 const recorder = new AudioRecorder();
@@ -204,6 +205,8 @@ function updateAppLanguageUI(lang) {
     if (activeItem) {
         languageSelectLabel.textContent = activeItem.textContent;
     }
+
+    renderQuota(lastQuotaData);
 }
 
 function updateSelectedFile(file, source = 'upload') {
@@ -723,39 +726,51 @@ async function checkAndDisplayQuota() {
     try {
         const adminSecret = new URLSearchParams(window.location.search).get('admin');
         if (adminSecret) {
-            quotaDisplay.classList.remove('hidden');
-            quotaText.textContent = getCurrentLang() === 'zh' ? '⭐ 管理员模式已开启' : '⭐ Admin bypass active';
+            renderQuota({ admin: true });
             return;
         }
 
         const data = await getQuota();
-        if (data && typeof data.limit === 'number') {
-            quotaDisplay.classList.remove('hidden');
-            const usedMin = Math.round(data.used / 60);
-            const totalMin = Math.round(data.limit / 60);
-            const remainingMin = Math.max(0, totalMin - usedMin);
-
-            if (getCurrentLang() === 'zh') {
-                quotaText.textContent = `本周剩余可转写：${remainingMin} / ${totalMin} 分钟`;
-            } else {
-                quotaText.textContent = `Weekly unused: ${remainingMin} / ${totalMin} mins`;
-            }
-
-            if (remainingMin <= 0) {
-                quotaDisplay.style.color = '#ef4444';
-                quotaDisplay.style.borderColor = '#ef4444';
-                quotaDisplay.style.backgroundColor = 'rgba(254, 226, 226, 0.9)';
-            } else if (remainingMin < 30) {
-                quotaDisplay.style.color = '#f59e0b';
-                quotaDisplay.style.borderColor = '#f59e0b';
-            } else {
-                quotaDisplay.style.color = 'var(--text-muted)';
-                quotaDisplay.style.borderColor = 'var(--glass-border)';
-                quotaDisplay.style.backgroundColor = 'var(--card-bg)';
-            }
+        if (data) {
+            lastQuotaData = data;
+            renderQuota(data);
         }
     } catch (err) {
         // fail silently
+    }
+}
+
+function renderQuota(data) {
+    if (!data) return;
+
+    const adminSecret = new URLSearchParams(window.location.search).get('admin');
+    if (data.admin || adminSecret) {
+        quotaDisplay.classList.remove('hidden');
+        quotaText.textContent = t('quota-admin');
+        return;
+    }
+
+    if (data && typeof data.limit === 'number') {
+        quotaDisplay.classList.remove('hidden');
+        const usedMin = Math.round(data.used / 60);
+        const totalMin = Math.round(data.limit / 60);
+        const remainingMin = Math.max(0, totalMin - usedMin);
+
+        quotaText.textContent = `${t('quota-label')}${remainingMin} / ${totalMin} ${t('quota-unit')}`;
+
+        if (remainingMin <= 0) {
+            quotaDisplay.style.color = '#ef4444';
+            quotaDisplay.style.borderColor = '#ef4444';
+            quotaDisplay.style.backgroundColor = 'rgba(254, 226, 226, 0.9)';
+        } else if (remainingMin < 30) {
+            quotaDisplay.style.color = '#f59e0b';
+            quotaDisplay.style.borderColor = '#f59e0b';
+            quotaDisplay.style.backgroundColor = 'var(--card-bg)';
+        } else {
+            quotaDisplay.style.color = 'var(--text-muted)';
+            quotaDisplay.style.borderColor = 'var(--glass-border)';
+            quotaDisplay.style.backgroundColor = 'var(--card-bg)';
+        }
     }
 }
 

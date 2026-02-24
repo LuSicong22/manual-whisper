@@ -36,7 +36,7 @@ export const appI18n = {
         'btn-json': '下载 JSON',
         'btn-copy': '复制文字',
         'btn-new': '开始新转写',
-        'status-uploading': '正在将音频提交给 AI 分析...',
+        'status-uploading': '正在准备音频并启动分析...',
         'status-transcribing': 'AI 正在转写 (通常需要 2-5 分钟)...',
         'status-creating-task': '准备就绪，正在启动 AI 任务...',
         'status-done': '处理完成！',
@@ -57,7 +57,10 @@ export const appI18n = {
         'history-empty': '暂无转写记录',
         'history-clear': '清空全部',
         'history-clear-confirm': '确定要清空所有历史记录吗？',
-        'history-deleted': '已删除'
+        'history-deleted': '已删除',
+        'quota-admin': '⭐ 管理员模式已开启',
+        'quota-label': '本周剩余可转写：',
+        'quota-unit': '分钟'
     },
     en: {
         'app-title': 'FlashNotes',
@@ -92,7 +95,7 @@ export const appI18n = {
         'btn-json': 'Download JSON',
         'btn-copy': 'Copy Text',
         'btn-new': 'New Transcription',
-        'status-uploading': 'Handing audio to AI for analysis...',
+        'status-uploading': 'Preparing audio for AI analysis...',
         'status-transcribing': 'AI is transcribing (usually 2-5 mins)...',
         'status-creating-task': 'Ready, starting AI task...',
         'status-done': 'Processing complete!',
@@ -113,7 +116,10 @@ export const appI18n = {
         'history-empty': 'No transcription history yet',
         'history-clear': 'Clear All',
         'history-clear-confirm': 'Are you sure you want to clear all history?',
-        'history-deleted': 'Deleted'
+        'history-deleted': 'Deleted',
+        'quota-admin': '⭐ Admin bypass active',
+        'quota-label': 'Weekly unused: ',
+        'quota-unit': 'mins'
     }
 };
 

@@ -3,7 +3,9 @@
     "version": "1.0.0",
     "type": "module",
     "scripts": {
-        "start": "vercel dev"
+        "start": "vercel dev",
+        "deploy:frontend": "firebase deploy --only hosting",
+        "deploy:frontend:prod": "firebase deploy --only hosting --project manual-whisper-test"
     },
     "dependencies": {
         "@vercel/blob": "^2.3.0",

@@ -6,7 +6,7 @@ export const appI18n = {
     zh: {
         'app-title': '闪记',
         'hero-title': 'AI 录音转写',
-        'app-desc': '自动转写为带时间戳和说话人标签的文字稿',
+        'app-desc': '基于 OpenAI Whisper 与 WhisperX · 自动生成带时间戳和说话人标签的文字稿',
         'upload-title': '导入音频',
         'upload-subtitle': '支持 m4a, mp3, wav, flac, ogg, wma, webm, aac',
         'no-file': '未选择文件',
@@ -86,12 +86,18 @@ export const appI18n = {
         'error-op-canceled': '操作被取消',
         'error-network': '网络请求异常',
         'error-parse': '解析异常',
-        'error-no-url': '未获取到文件地址'
+        'error-no-url': '未获取到文件地址',
+        'feedback-title': '转写完成！体验如何？',
+        'feedback-subtitle': '你的反馈帮助我们持续改进',
+        'feedback-placeholder': '有什么想告诉我们的？（可选）',
+        'feedback-submit': '提交反馈',
+        'feedback-skip': '跳过',
+        'feedback-thanks': '感谢你的反馈！ 🙏'
     },
     en: {
         'app-title': 'FlashNotes',
         'hero-title': 'AI Audio Transcription',
-        'app-desc': 'Auto-transcribe audio with timestamps & speaker tags',
+        'app-desc': 'Powered by OpenAI Whisper & WhisperX · Auto-transcribe with timestamps & speaker tags',
         'upload-title': 'Import Audio',
         'upload-subtitle': 'Supports m4a, mp3, wav, flac, ogg, wma, webm, aac',
         'no-file': 'No file selected',
@@ -171,7 +177,13 @@ export const appI18n = {
         'error-op-canceled': 'Operation canceled',
         'error-network': 'Network request error',
         'error-parse': 'Parse error',
-        'error-no-url': 'File URL not found'
+        'error-no-url': 'File URL not found',
+        'feedback-title': 'Transcription done! How was it?',
+        'feedback-subtitle': 'Your feedback helps us improve',
+        'feedback-placeholder': 'Anything you want to share? (optional)',
+        'feedback-submit': 'Submit',
+        'feedback-skip': 'Skip',
+        'feedback-thanks': 'Thanks for your feedback! 🙏'
     }
 };
 

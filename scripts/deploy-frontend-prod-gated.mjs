@@ -10,6 +10,10 @@ function hasArg(flag) {
     return process.argv.includes(flag);
 }
 
+function escapeRegExp(input) {
+    return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function pad2(n) {
     return String(n).padStart(2, '0');
 }
@@ -55,35 +59,60 @@ function runCommand({ label, cmd, args, env, dryRun = false }) {
 
         if (dryRun) {
             console.log(`[gate] dry-run skip: ${rendered}`);
-            resolve({ ok: true, code: 0, signal: null, error: null, dryRun: true });
+            resolve({ ok: true, code: 0, signal: null, error: null, dryRun: true, stdout: '', stderr: '' });
             return;
         }
 
         const child = spawn(cmd, args, {
             cwd: process.cwd(),
             env: env || process.env,
-            stdio: 'inherit',
+            stdio: ['ignore', 'pipe', 'pipe'],
+        });
+        let stdout = '';
+        let stderr = '';
+
+        child.stdout.on('data', (chunk) => {
+            const text = String(chunk);
+            stdout += text;
+            process.stdout.write(text);
+        });
+
+        child.stderr.on('data', (chunk) => {
+            const text = String(chunk);
+            stderr += text;
+            process.stderr.write(text);
         });
 
         child.on('error', (error) => {
-            resolve({ ok: false, code: 1, signal: null, error });
+            resolve({ ok: false, code: 1, signal: null, error, stdout, stderr });
         });
 
         child.on('close', (code, signal) => {
-            resolve({ ok: code === 0, code: code ?? 1, signal: signal ?? null, error: null });
+            resolve({ ok: code === 0, code: code ?? 1, signal: signal ?? null, error: null, stdout, stderr });
         });
     });
 }
 
-function buildPreviewUrl(channelId, siteId) {
-    return `https://${channelId}--${siteId}.web.app`;
+function extractPreviewUrl(previewOutput, channelId) {
+    const escapedChannel = escapeRegExp(channelId);
+    const channelSpecific = new RegExp(`https://[^\\s]*--${escapedChannel}[^\\s]*\\.web\\.app`, 'ig');
+    const channelMatches = previewOutput.match(channelSpecific) || [];
+    if (channelMatches.length > 0) return channelMatches[channelMatches.length - 1];
+
+    const generic = previewOutput.match(/https:\/\/[^\s]*--[^\s]*\.web\.app/ig) || [];
+    if (generic.length > 0) return generic[generic.length - 1];
+
+    return '';
+}
+
+function buildDryRunPreviewUrl(siteId, channelId) {
+    return `https://${siteId}--${channelId}-dryrun.web.app`;
 }
 
 async function main() {
     const projectId = (process.env.FIREBASE_PROJECT_ID || DEFAULT_PROJECT_ID).trim();
     const siteId = resolveSiteId();
     const channelId = buildChannelId();
-    const previewUrl = buildPreviewUrl(channelId, siteId);
     const dryRun = hasArg('--dry-run') || hasArg('-n') || String(process.env.GATE_DRY_RUN || '').trim() === '1';
 
     console.log('[gate] start: preview deploy -> smoke -> production deploy');
@@ -110,6 +139,18 @@ async function main() {
         console.error('[gate] preview deploy failed. production deploy skipped.');
         if (preview.error) console.error(`[gate] preview deploy error: ${preview.error.message}`);
         process.exit(preview.code || 1);
+    }
+
+    const previewOutput = `${preview.stdout || ''}\n${preview.stderr || ''}`;
+    let previewUrl = extractPreviewUrl(previewOutput, channelId);
+    if (!previewUrl && dryRun) {
+        previewUrl = buildDryRunPreviewUrl(siteId, channelId);
+    }
+
+    if (!previewUrl) {
+        console.error('[gate] could not determine preview URL from firebase output.');
+        console.error('[gate] smoke skipped. production deploy blocked for safety.');
+        process.exit(1);
     }
 
     console.log(`[gate] preview url: ${previewUrl}`);

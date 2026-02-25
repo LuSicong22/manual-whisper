@@ -273,6 +273,76 @@ export function createTranscriptionController(deps) {
 
         setRunning(false);
         setControlsDisabled(false);
+
+        // Show feedback modal on first transcription
+        if (!localStorage.getItem('feedback_shown')) {
+            setTimeout(() => showFeedbackModal(t), 1200);
+        }
+    }
+
+    function showFeedbackModal(t) {
+        const modal = document.getElementById('feedback-modal');
+        if (!modal) return;
+
+        let selectedRating = 0;
+
+        const stars = modal.querySelectorAll('.star-btn');
+        const submitBtn = document.getElementById('feedback-submit');
+        const skipBtn = document.getElementById('feedback-skip');
+        const closeBtn = document.getElementById('feedback-close');
+        const textarea = document.getElementById('feedback-text');
+
+        // Reset state
+        stars.forEach(s => s.classList.remove('selected'));
+        if (textarea) textarea.value = '';
+        if (submitBtn) submitBtn.disabled = true;
+        selectedRating = 0;
+
+        // Update translations
+        modal.querySelectorAll('[data-i18n]').forEach(el => {
+            el.textContent = t(el.getAttribute('data-i18n'));
+        });
+        modal.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+            el.setAttribute('placeholder', t(el.getAttribute('data-i18n-placeholder')));
+        });
+
+        stars.forEach(star => {
+            star.addEventListener('click', () => {
+                selectedRating = parseInt(star.dataset.rating, 10);
+                stars.forEach(s => s.classList.toggle('selected', parseInt(s.dataset.rating, 10) === selectedRating));
+                if (submitBtn) submitBtn.disabled = false;
+            });
+        });
+
+        const dismiss = (submitted) => {
+            localStorage.setItem('feedback_shown', '1');
+            modal.classList.add('hidden');
+            if (submitted && selectedRating > 0) {
+                // Show thanks briefly
+                const content = modal.querySelector('.feedback-modal-content');
+                if (content) {
+                    content.innerHTML = `<div class="feedback-emoji-header">🙏</div><p class="feedback-thanks-msg">${t('feedback-thanks')}</p>`;
+                }
+                setTimeout(() => modal.classList.add('hidden'), 1800);
+            }
+        };
+
+        if (submitBtn) {
+            submitBtn.onclick = () => {
+                const comment = textarea ? textarea.value.trim() : '';
+                if (typeof window.gtag === 'function') {
+                    window.gtag('event', 'user_feedback', { rating: selectedRating, comment: comment.substring(0, 100) });
+                }
+                dismiss(true);
+            };
+        }
+        if (skipBtn) skipBtn.onclick = () => dismiss(false);
+        if (closeBtn) closeBtn.onclick = () => dismiss(false);
+
+        // Close on backdrop click
+        modal.onclick = (e) => { if (e.target === modal) dismiss(false); };
+
+        modal.classList.remove('hidden');
     }
 
     return {

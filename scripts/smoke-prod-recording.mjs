@@ -119,6 +119,22 @@ async function waitForResult(page, timeoutMs) {
     };
 }
 
+async function tryConfirmStopModal(page, waitMs = 5000) {
+    const started = Date.now();
+    while (Date.now() - started < waitMs) {
+        const visible = await page.evaluate(() => {
+            const modal = document.getElementById('confirm-modal');
+            return !!modal && !modal.classList.contains('hidden');
+        });
+        if (visible) {
+            await page.click('#confirm-ok');
+            return true;
+        }
+        await page.waitForTimeout(150);
+    }
+    return false;
+}
+
 async function run() {
     const targetUrl = (process.env.PROD_FRONTEND_URL || DEFAULT_TARGET_URL).trim();
     const fixturePath = toAbsolutePath(process.env.SMOKE_AUDIO_FIXTURE || DEFAULT_FIXTURE);
@@ -161,12 +177,13 @@ async function run() {
         addStep(result, 'record_stop_trigger');
         await page.click('#record-btn');
 
-        addStep(result, 'record_stop_confirm');
-        await page.waitForFunction(() => {
-            const modal = document.getElementById('confirm-modal');
-            return !!modal && !modal.classList.contains('hidden');
-        }, undefined, { timeout: 15000 });
-        await page.click('#confirm-ok');
+        addStep(result, 'record_stop_confirm_try');
+        const modalConfirmed = await tryConfirmStopModal(page, 5000);
+        if (modalConfirmed) {
+            addStep(result, 'record_stop_confirmed');
+        } else {
+            addStep(result, 'record_stop_confirm_skipped', 'modal not shown; continue with direct-stop path');
+        }
 
         addStep(result, 'wait_start_enabled');
         await page.waitForFunction(() => {

@@ -3,26 +3,16 @@
  */
 import { sleep } from './utils.js';
 import { t } from './i18n.js';
+import { API_BASE, APP_SHARED_KEY } from './clientConfig.js';
 
 const POLL_TIMEOUT_MS = 30 * 60 * 1000;
 const INITIAL_POLL_INTERVAL_MS = 3000;
 const MAX_POLL_INTERVAL_MS = 10000;
 
-// The frontend "secret" key to authorize with our backend.
-// Derived from the same logic as the backend.
-const REPLICATE_PREVIEW = "r8_L2Gy7Kf3Q"; // First 12 chars of the token
-const APP_KEY = REPLICATE_PREVIEW;
-
-// When hosted on Firebase (web.app domain) or testing frontend locally via Firebase emulators, route API calls to Vercel.
-// When using vercel dev (typically localhost:3000), use relative paths for local testing.
-const VERCEL_API_BASE = typeof window !== 'undefined' && (window.location.hostname.endsWith('.web.app') || window.location.hostname === '127.0.0.1' || window.location.port === '5000')
-    ? 'https://whisper-omega.vercel.app'
-    : '';
-
 export async function uploadFile(file, onProgress) {
     // On .web.app domains, upload directly to Vercel Blob to bypass Vercel's 4.5MB body limit.
     // On local dev (vercel dev), use the Vercel proxy which has no such limit.
-    if (VERCEL_API_BASE) {
+    if (API_BASE) {
         return uploadViaVercelBlob(file, onProgress);
     }
     return uploadViaVercel(file, onProgress);
@@ -30,13 +20,13 @@ export async function uploadFile(file, onProgress) {
 
 async function uploadViaVercelBlob(file, onProgress) {
     // Step 1: Request a client upload token from our server (tiny request, no body limit)
-    const tokenRes = await fetch(`${VERCEL_API_BASE}/api/blob-upload`, {
+    const tokenRes = await fetch(`${API_BASE}/api/blob-upload`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'x-app-key': APP_KEY
+            'x-app-key': APP_SHARED_KEY
         },
-        body: JSON.stringify({ type: 'blob.generate-client-token', payload: { pathname: file.name, callbackUrl: `${VERCEL_API_BASE}/api/blob-upload` } }),
+        body: JSON.stringify({ type: 'blob.generate-client-token', payload: { pathname: file.name, callbackUrl: `${API_BASE}/api/blob-upload` } }),
     });
     if (!tokenRes.ok) {
         const err = await safeJson(tokenRes);
@@ -97,7 +87,7 @@ function uploadViaVercel(file, onProgress) {
         xhr.setRequestHeader('x-file-name', encodeURIComponent(file.name));
         xhr.setRequestHeader('x-file-content-type', file.type || 'application/octet-stream');
         xhr.setRequestHeader('content-type', 'application/octet-stream');
-        xhr.setRequestHeader('x-app-key', APP_KEY);
+        xhr.setRequestHeader('x-app-key', APP_SHARED_KEY);
 
         xhr.upload.onprogress = (event) => {
             if (event.lengthComputable && typeof onProgress === 'function') {
@@ -137,12 +127,12 @@ function uploadViaVercel(file, onProgress) {
     });
 }
 
-export async function createTranscription(fileUrl, sourceFilename, language, durationSec) {
-    const res = await fetch(`${VERCEL_API_BASE}/api/transcribe`, {
+export async function createTranscription({ fileUrl, sourceFilename, language, durationSec }) {
+    const res = await fetch(`${API_BASE}/api/transcribe`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'x-app-key': APP_KEY
+            'x-app-key': APP_SHARED_KEY
         },
         body: JSON.stringify({
             fileUrl,
@@ -169,8 +159,8 @@ export async function pollTranscriptionStatus(predictionId, onUpdate) {
             throw new Error(t('error-timeout'));
         }
 
-        const res = await fetch(`${VERCEL_API_BASE}/api/transcribe?id=${encodeURIComponent(predictionId)}`, {
-            headers: { 'x-app-key': APP_KEY }
+        const res = await fetch(`${API_BASE}/api/transcribe?id=${encodeURIComponent(predictionId)}`, {
+            headers: { 'x-app-key': APP_SHARED_KEY }
         });
 
         if (!res.ok) {
@@ -193,8 +183,8 @@ export async function pollTranscriptionStatus(predictionId, onUpdate) {
 }
 
 export async function getQuota() {
-    const res = await fetch(`${VERCEL_API_BASE}/api/transcribe?action=quota`, {
-        headers: { 'x-app-key': APP_KEY }
+    const res = await fetch(`${API_BASE}/api/transcribe?action=quota`, {
+        headers: { 'x-app-key': APP_SHARED_KEY }
     });
     if (!res.ok) return null;
     return await res.json();

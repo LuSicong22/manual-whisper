@@ -1,11 +1,23 @@
 /**
  * main.js - App Controller for manual-whisper
  */
-import { formatTime, formatBytes, sleep, clampPercent, extractFileBaseName, getAudioDuration } from './utils.js';
+import { formatTime, formatBytes, sleep, extractFileBaseName, getAudioDuration } from './utils.js';
 import { t, setAppLang, getCurrentLang, updateDOMTranslations } from './i18n.js';
 import { uploadFile, createTranscription, pollTranscriptionStatus, getQuota } from './apiService.js';
 import { AudioRecorder } from './audioRecorder.js';
 import { saveHistory, getAllHistory, getHistoryById, deleteHistoryById, clearAllHistory } from './historyStore.js';
+import { dom } from './app/domRefs.js';
+import { bindCopyTranscriptButton } from './app/copyButton.js';
+import { createProgressController } from './app/flows/progressController.js';
+import { createHistoryController } from './app/flows/historyFlow.js';
+import { createRecordingController } from './app/flows/recordingFlow.js';
+import { createTranscriptionController } from './app/flows/transcriptionFlow.js';
+import {
+    getFileExt,
+    getTranscriptStatsFromJson,
+    statusToLocalized,
+    computeTranscribePercent
+} from './app/flows/transcriptionHelpers.js';
 import {
     initAnalytics,
     bucketizeSeconds,
@@ -27,81 +39,83 @@ import {
     trackHistoryClear
 } from './analytics.js';
 
-// --- DOM Elements ---
-const inputArea = document.getElementById('input-area');
-const fileInput = document.getElementById('file-input');
-const pickFileBtn = document.getElementById('pick-file-btn');
-const fileInfoBar = document.getElementById('file-info-bar');
-const selectedFileName = document.getElementById('selected-file-name');
-const removeFileBtn = document.getElementById('remove-file-btn');
-const languageSelectTrigger = document.getElementById('language-select-trigger');
-const languageSelectLabel = document.getElementById('language-select-label');
-const languageOptions = document.getElementById('language-options');
-const languageItems = languageOptions.querySelectorAll('.dropdown-item');
-const startBtn = document.getElementById('start-btn');
-const progressArea = document.getElementById('progress-area');
-const resultArea = document.getElementById('result-area');
-const statusText = document.getElementById('status-text');
-const timerDisplay = document.getElementById('timer');
-const transcriptPreview = document.getElementById('transcript-preview');
-const downloadMdBtn = document.getElementById('download-md');
-const downloadJsonBtn = document.getElementById('download-json');
-const copyTranscriptBtn = document.getElementById('copy-transcript');
-const newUploadBtn = document.getElementById('new-upload-btn');
-const resultMeta = document.getElementById('result-meta');
-const errorMessage = document.getElementById('error-message');
-const uploadStatusLine = document.getElementById('upload-status-line');
-const transcribeStatusLine = document.getElementById('transcribe-status-line');
-const uploadProgressFill = document.getElementById('upload-progress-fill');
-const transcribeProgressFill = document.getElementById('transcribe-progress-fill');
-const recordBtn = document.getElementById('record-btn');
-const recordStatus = document.getElementById('record-status');
-const volumeMeter = document.getElementById('volume-meter');
-const waveBars = document.querySelectorAll('.wave-bar');
-const recordPlayback = document.getElementById('record-playback');
-const resultPlayback = document.getElementById('result-playback');
-const uploadSection = document.getElementById('upload-section');
-const recordSection = document.getElementById('record-section');
-const recordInfoBar = document.getElementById('record-info-bar');
-const removeRecordBtn = document.getElementById('remove-record-btn');
-const quotaDisplay = document.getElementById('quota-display');
-const quotaText = document.getElementById('quota-text');
-
-// Custom Player Elements
-const cpPlayerUI = document.getElementById('record-playback-ui');
-const cpPlayBtn = document.getElementById('cp-play-btn');
-const cpIconPlay = document.getElementById('cp-icon-play');
-const cpIconPause = document.getElementById('cp-icon-pause');
-const cpCurrentTime = document.getElementById('cp-current');
-const cpDurationTime = document.getElementById('cp-duration');
-const cpSpeedBtn = document.getElementById('cp-speed-btn');
-const cpTrack = document.getElementById('cp-track');
-const cpFill = document.getElementById('cp-fill');
-const cpThumb = document.getElementById('cp-thumb');
-const cpDownloadBtn = document.getElementById('cp-download-btn');
-
-// Custom Result Player Elements
-const resPlayerUI = document.getElementById('result-playback-ui');
-const resPlayBtn = document.getElementById('res-play-btn');
-const resIconPlay = document.getElementById('res-icon-play');
-const resIconPause = document.getElementById('res-icon-pause');
-const resCurrentTime = document.getElementById('res-current');
-const resDurationTime = document.getElementById('res-duration');
-const resSpeedBtn = document.getElementById('res-speed-btn');
-const resTrack = document.getElementById('res-track');
-const resFill = document.getElementById('res-fill');
-const resThumb = document.getElementById('res-thumb');
-const resDownloadBtn = document.getElementById('res-download-btn');
-
-// Confirm Modal Elements
-const confirmModal = document.getElementById('confirm-modal');
-const confirmOkBtn = document.getElementById('confirm-ok');
-const confirmCancelBtn = document.getElementById('confirm-cancel');
-const modalTitle = document.getElementById('modal-title');
-
-const historyList = document.getElementById('history-list');
-const historyClearBtn = document.getElementById('history-clear-btn');
-const historyEmpty = document.getElementById('history-empty');
+const {
+    inputArea,
+    fileInput,
+    pickFileBtn,
+    fileInfoBar,
+    selectedFileName,
+    removeFileBtn,
+    languageSelectTrigger,
+    languageSelectLabel,
+    languageOptions,
+    languageItems,
+    startBtn,
+    progressArea,
+    resultArea,
+    statusText,
+    timerDisplay,
+    transcriptPreview,
+    downloadMdBtn,
+    downloadJsonBtn,
+    copyTranscriptBtn,
+    newUploadBtn,
+    resultMeta,
+    errorMessage,
+    uploadStatusLine,
+    transcribeStatusLine,
+    uploadProgressFill,
+    transcribeProgressFill,
+    recordBtn,
+    recordStatus,
+    volumeMeter,
+    waveBars,
+    recordPlayback,
+    resultPlayback,
+    uploadSection,
+    recordSection,
+    recordInfoBar,
+    removeRecordBtn,
+    quotaDisplay,
+    quotaText,
+    cpPlayerUI,
+    cpPlayBtn,
+    cpIconPlay,
+    cpIconPause,
+    cpCurrentTime,
+    cpDurationTime,
+    cpSpeedBtn,
+    cpTrack,
+    cpFill,
+    cpThumb,
+    cpDownloadBtn,
+    resPlayerUI,
+    resPlayBtn,
+    resIconPlay,
+    resIconPause,
+    resCurrentTime,
+    resDurationTime,
+    resSpeedBtn,
+    resTrack,
+    resFill,
+    resThumb,
+    resDownloadBtn,
+    confirmModal,
+    confirmOkBtn,
+    confirmCancelBtn,
+    modalTitle,
+    historyList,
+    historyClearBtn,
+    historyEmpty,
+    appLangTrigger,
+    appLangLabel,
+    appLangOptions,
+    recordLabel,
+    recordSvgMic,
+    recordSvgStop,
+    actionWrapper,
+    historyPanel,
+} = dom;
 
 // --- Global State ---
 let lastAudioUrl = null;
@@ -136,44 +150,187 @@ recorder.onVolumeChange = (rms) => {
 const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
 const SUPPORTED_EXTENSIONS = ['.m4a', '.mp3', '.wav', '.flac', '.ogg', '.wma', '.webm', '.aac'];
 
-let recordStartTime = null;
-let recordTimerInterval = null;
+const progressController = createProgressController({
+    uploadProgressFill,
+    uploadStatusLine,
+    transcribeProgressFill,
+    transcribeStatusLine,
+    statusText,
+    t
+});
+const {
+    setUploadProgress,
+    setTranscribeProgress,
+    updateStatus,
+    resetRuntimeBox,
+} = progressController;
+
+const historyController = createHistoryController({
+    historyList,
+    historyEmpty,
+    historyClearBtn,
+    getAllHistory,
+    getHistoryById,
+    requestDeleteHistory: (id) => {
+        modalContext = 'delete-history';
+        modalTitle.textContent = t('record-remove-confirm');
+        confirmOkBtn.textContent = t('confirm-ok-label');
+        confirmModal.dataset.deleteId = id;
+        confirmModal.classList.remove('hidden');
+    },
+    resetUI,
+    inputArea,
+    resultArea,
+    transcriptPreview,
+    getTranscriptStatsFromJson,
+    trackHistoryView,
+    trackTranscriptView,
+    setupDownload,
+    downloadMdBtn,
+    downloadJsonBtn,
+    extractFileBaseName,
+    formatBytes,
+    resultMeta,
+    copyTranscriptBtn,
+    bindCopyTranscriptButton,
+    t,
+    trackCopyTranscript,
+    resultPlayback,
+    resPlayerUI,
+    resFill,
+    resThumb,
+    resCurrentTime,
+    resIconPlay,
+    resIconPause,
+    resSpeedBtn,
+});
+const { renderHistoryList } = historyController;
+
+const recordingController = createRecordingController({
+    recorder,
+    t,
+    formatBytes,
+    trackRecordStart,
+    trackRecordStartFailed,
+    trackRecordStop,
+    updateSelectedFile,
+    showError,
+    getSelectedFile: () => selectedFile,
+    getRecordPlaybackUrl: () => recordPlaybackUrl,
+    setRecordPlaybackUrl: (nextUrl) => {
+        recordPlaybackUrl = nextUrl;
+    },
+    ui: {
+        startBtn,
+        pickFileBtn,
+        fileInput,
+        uploadSection,
+        cpPlayerUI,
+        recordPlayback,
+        recordSvgMic,
+        recordSvgStop,
+        recordLabel,
+        recordBtn,
+        recordInfoBar,
+        removeRecordBtn,
+        recordStatus,
+        errorMessage,
+        volumeMeter,
+        waveBars,
+        cpFill,
+        cpThumb,
+        cpCurrentTime,
+        cpIconPlay,
+        cpIconPause,
+    }
+});
+
+const transcriptionController = createTranscriptionController({
+    t,
+    formatBytes,
+    getAudioDuration,
+    bucketizeSeconds,
+    uploadFile,
+    createTranscription,
+    pollTranscriptionStatus,
+    getAllHistory,
+    getFileExt,
+    getTranscriptStatsFromJson,
+    computeTranscribePercent,
+    statusToLocalized,
+    trackTranscriptionBlocked,
+    trackTranscriptionStart,
+    trackTranscriptionComplete,
+    trackTranscriptView,
+    trackCopyTranscript,
+    saveHistory,
+    bindCopyTranscriptButton,
+    setupDownload,
+    updateTranscriptionLanguageUI,
+    setControlsDisabled,
+    startTimer,
+    stopTimer,
+    resetRuntimeBox,
+    updateStatus,
+    setUploadProgress,
+    setTranscribeProgress,
+    resetUI,
+    showError,
+    checkAndDisplayQuota,
+    setRunning: (next) => {
+        running = next;
+    },
+    getRunning: () => running,
+    getSelectedFile: () => selectedFile,
+    getCurrentFileBaseName: () => currentFileBaseName,
+    getLastSelectedSource: () => lastSelectedSource,
+    getLastTranscriptionInputSource: () => lastTranscriptionInputSource,
+    setLastTranscriptionInputSource: (next) => {
+        lastTranscriptionInputSource = next;
+    },
+    getLastTranscriptionAudioDurationSec: () => lastTranscriptionAudioDurationSec,
+    setLastTranscriptionAudioDurationSec: (next) => {
+        lastTranscriptionAudioDurationSec = next;
+    },
+    getLastTranscriptionAudioDurationBucket: () => lastTranscriptionAudioDurationBucket,
+    setLastTranscriptionAudioDurationBucket: (next) => {
+        lastTranscriptionAudioDurationBucket = next;
+    },
+    getCurrentAudioUrl: () => currentAudioUrl,
+    setCurrentAudioUrl: (next) => {
+        currentAudioUrl = next;
+    },
+    getRecordPlaybackUrl: () => recordPlaybackUrl,
+    getLastAudioUrl: () => lastAudioUrl,
+    getStartTime: () => startTime,
+    getTranscribePercentHint: () => transcribePercentHint,
+    setTranscribePercentHint: (next) => {
+        transcribePercentHint = next;
+    },
+    MAX_UPLOAD_BYTES,
+    SUPPORTED_EXTENSIONS,
+    ui: {
+        inputArea,
+        progressArea,
+        resultArea,
+        errorMessage,
+        transcriptPreview,
+        downloadMdBtn,
+        downloadJsonBtn,
+        resultMeta,
+        copyTranscriptBtn,
+        resultPlayback,
+        resPlayerUI,
+        resFill,
+        resThumb,
+        resCurrentTime,
+        resIconPlay,
+        resIconPause,
+        resSpeedBtn,
+    }
+});
 
 // --- Functions ---
-
-function getFileExt(name) {
-    if (!name || typeof name !== 'string') return '';
-    const idx = name.lastIndexOf('.');
-    if (idx < 0 || idx === name.length - 1) return '';
-    return name.slice(idx + 1).toLowerCase();
-}
-
-function uniqueSpeakerCount(segments) {
-    if (!Array.isArray(segments)) return 0;
-    const set = new Set();
-    for (const seg of segments) {
-        const s = seg && typeof seg.speaker === 'string' ? seg.speaker.trim() : '';
-        if (s) set.add(s);
-    }
-    return set.size;
-}
-
-function getTranscriptStatsFromJson(json) {
-    const segments = Array.isArray(json && json.segments) ? json.segments : [];
-    const speakersCount = uniqueSpeakerCount(segments);
-    const cleanup = json && json.cleanup_stats ? json.cleanup_stats : null;
-    const removedTotal = cleanup
-        ? Number(cleanup.removed_prompt_only_segments || 0) + Number(cleanup.removed_hallucination_segments || 0) + Number(cleanup.removed_noise_segments || 0)
-        : 0;
-    const warnings = json && json.quality_report && Array.isArray(json.quality_report.warnings) ? json.quality_report.warnings : [];
-
-    return {
-        segments_count: segments.length,
-        speakers_count: speakersCount,
-        removed_segments_count: removedTotal,
-        quality_warning_count: warnings.length
-    };
-}
 
 function setupCustomPlayer(audio, playBtn, iconPlay, iconPause, currentTime, durationTime, speedBtn, track, fill, thumb, downloadBtn) {
     playBtn.addEventListener('click', () => {
@@ -243,11 +400,9 @@ function updateAppLanguageUI(lang) {
     updateDOMTranslations();
 
     // Update Dropdown UI
-    const triggerLabel = document.getElementById('app-lang-label');
-    const options = document.getElementById('app-lang-options');
-    const items = options.querySelectorAll('.dropdown-item');
+    const items = appLangOptions.querySelectorAll('.dropdown-item');
 
-    triggerLabel.textContent = lang.toUpperCase();
+    appLangLabel.textContent = lang.toUpperCase();
     items.forEach(item => {
         item.classList.toggle('active', item.dataset.value === lang);
     });
@@ -256,7 +411,7 @@ function updateAppLanguageUI(lang) {
         selectedFileName.textContent = t('no-file');
     }
 
-    document.getElementById('record-label').textContent = recorder.isRecording ? t('record-stop') : t('record-start');
+    recordLabel.textContent = recordingController.isRecording() ? t('record-stop') : t('record-start');
 
     // Sync transcription language if no manual choice has been saved yet
     const savedTransLang = localStorage.getItem('trans_lang');
@@ -284,7 +439,6 @@ function updateTranscriptionLanguageUI(langValue, save = true) {
 
 function updateSelectedFile(file, source = 'upload', meta = {}) {
     selectedFile = file;
-    const actionWrapper = document.getElementById('action-wrapper');
     const splitDivider = document.querySelector('.split-divider');
 
     if (!file) {
@@ -298,7 +452,7 @@ function updateSelectedFile(file, source = 'upload', meta = {}) {
         if (splitDivider) splitDivider.classList.remove('hidden');
 
         recordBtn.classList.remove('hidden');
-        document.getElementById('record-label').classList.remove('hidden');
+        recordLabel.classList.remove('hidden');
 
         startBtn.disabled = true;
         cpPlayerUI.classList.add('hidden');
@@ -333,7 +487,7 @@ function updateSelectedFile(file, source = 'upload', meta = {}) {
         recordSection.classList.remove('dimmed');
 
         recordBtn.classList.add('hidden');
-        document.getElementById('record-label').classList.add('hidden');
+        recordLabel.classList.add('hidden');
     }
 
     currentFileBaseName = extractFileBaseName(file.name);
@@ -343,362 +497,6 @@ function updateSelectedFile(file, source = 'upload', meta = {}) {
 
     if (lastAudioUrl) URL.revokeObjectURL(lastAudioUrl);
     lastAudioUrl = URL.createObjectURL(file);
-}
-
-async function startRecording() {
-    try {
-        await recorder.start();
-
-        recordStartTime = Date.now();
-        trackRecordStart();
-        updateSelectedFile(null);
-        uploadSection.classList.add('dimmed');
-
-        cpPlayerUI.classList.add('hidden');
-        recordPlayback.src = '';
-        document.getElementById('record-svg-mic').classList.add('hidden');
-        document.getElementById('record-svg-stop').classList.remove('hidden');
-        document.getElementById('record-label').textContent = t('record-stop');
-        recordBtn.classList.add('recording');
-        setRecordingControlsDisabled(true);
-        recordInfoBar.classList.remove('hidden');
-        removeRecordBtn.classList.add('hidden'); // Hide remove button during recording
-        recordStatus.textContent = t('recording') + '00:00';
-        errorMessage.classList.add('hidden');
-        volumeMeter.classList.remove('hidden');
-        waveBars.forEach(b => { b.style.height = '8px'; b.style.opacity = '0.4'; });
-
-        recordTimerInterval = setInterval(() => {
-            const sec = Math.floor((Date.now() - recordStartTime) / 1000);
-            const mm = String(Math.floor(sec / 60)).padStart(2, '0');
-            const ss = String(sec % 60).padStart(2, '0');
-            recordStatus.textContent = t('recording') + `${mm}:${ss}`;
-        }, 500);
-    } catch (err) {
-        trackRecordStartFailed(err && err.message ? err.message : String(err));
-        showError(err.message);
-    }
-}
-
-function stopRecording() {
-    const wavBlob = recorder.stop();
-    const recordDurationSec = recordStartTime ? Math.max(0, Math.round((Date.now() - recordStartTime) / 1000)) : 0;
-    const now = new Date();
-    const ts = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}`;
-    const fileName = `${t('recording-name-prefix')}${ts}.wav`;
-    const file = new File([wavBlob], fileName, { type: 'audio/wav' });
-
-    trackRecordStop(recordDurationSec, Math.round(file.size / 1024 / 1024 * 10) / 10);
-    recordStartTime = null;
-
-    updateSelectedFile(file, 'record');
-    recordStatus.textContent = t('record-done') + `${formatBytes(file.size)}`;
-
-    if (recordPlaybackUrl) URL.revokeObjectURL(recordPlaybackUrl);
-    recordPlaybackUrl = URL.createObjectURL(wavBlob);
-    recordPlayback.src = recordPlaybackUrl;
-    cpPlayerUI.classList.remove('hidden');
-
-    // Reset custom UI
-    cpFill.style.width = '0%';
-    cpThumb.style.left = '0%';
-    cpCurrentTime.textContent = '0:00';
-    cpIconPlay.classList.remove('hidden');
-    cpIconPause.classList.add('hidden');
-
-    cleanupRecordingState();
-}
-
-function cleanupRecordingState() {
-    clearInterval(recordTimerInterval);
-    recordTimerInterval = null;
-
-    document.getElementById('record-svg-mic').classList.remove('hidden');
-    document.getElementById('record-svg-stop').classList.add('hidden');
-    document.getElementById('record-label').textContent = t('record-start');
-    recordBtn.classList.remove('recording');
-    volumeMeter.classList.add('hidden');
-    waveBars.forEach(b => { b.style.height = '8px'; b.style.opacity = '0.4'; });
-    setRecordingControlsDisabled(false);
-
-    if (!selectedFile) {
-        uploadSection.classList.remove('dimmed');
-    }
-
-    recorder.cleanup();
-}
-
-function setRecordingControlsDisabled(disabled) {
-    startBtn.disabled = disabled || !selectedFile;
-    pickFileBtn.disabled = disabled;
-    fileInput.disabled = disabled;
-}
-
-async function startTranscriptionTask(file, language) {
-    if (running) return;
-
-    if (!file) {
-        showError(t('error-select-file'));
-        return;
-    }
-    const inputSource = recordPlaybackUrl ? 'record' : 'upload';
-    if (file.size <= 0) {
-        trackTranscriptionBlocked('empty_file', { input_source: inputSource });
-        showError(t('error-file-empty'));
-        return;
-    }
-    if (file.size > MAX_UPLOAD_BYTES) {
-        trackTranscriptionBlocked('file_too_large', {
-            input_source: inputSource,
-            file_size_mb: Math.round(file.size / 1024 / 1024 * 10) / 10
-        });
-        showError(t('error-file-too-large'));
-        return;
-    }
-    if (!SUPPORTED_EXTENSIONS.some(ext => file.name.toLowerCase().endsWith(ext))) {
-        trackTranscriptionBlocked('unsupported_format', {
-            input_source: inputSource,
-            file_ext: getFileExt(file.name)
-        });
-        showError(`${t('error-file-format')}${t('colon')}${SUPPORTED_EXTENSIONS.join(', ')}`);
-        return;
-    }
-
-    updateTranscriptionLanguageUI(language);
-    running = true;
-    setControlsDisabled(true);
-
-    lastTranscriptionInputSource = inputSource;
-    const fileSizeMB = Math.round(file.size / 1024 / 1024 * 10) / 10;
-    const hasHistory = getAllHistory().length > 0 ? '1' : '0';
-
-    const adminSecret = new URLSearchParams(window.location.search).get('admin');
-    const durationSec = await getAudioDuration(file);
-    lastTranscriptionAudioDurationSec = Math.round(Number(durationSec) || 0);
-    lastTranscriptionAudioDurationBucket = bucketizeSeconds(durationSec);
-
-    if (!adminSecret && durationSec > 60 * 60) {
-        trackTranscriptionBlocked('duration_limit', {
-            input_source: inputSource,
-            audio_duration_sec: lastTranscriptionAudioDurationSec,
-            audio_duration_bucket: lastTranscriptionAudioDurationBucket
-        });
-        running = false;
-        setControlsDisabled(false);
-        showError(t('error-duration-limit'));
-        return;
-    }
-
-    trackTranscriptionStart(language, inputSource, fileSizeMB, {
-        audio_duration_sec: lastTranscriptionAudioDurationSec,
-        audio_duration_bucket: lastTranscriptionAudioDurationBucket,
-        has_history: hasHistory
-    });
-
-    inputArea.classList.add('hidden');
-    progressArea.classList.remove('hidden');
-    resultArea.classList.add('hidden');
-    errorMessage.classList.add('hidden');
-
-    startTimer();
-    resetRuntimeBox(file);
-
-    try {
-        updateStatus('upload', t('status-uploading'));
-        const fileUrl = await uploadFile(file, (uploaded, total) => {
-            const percent = Math.round((uploaded / total) * 100);
-            setUploadProgress(percent, `${t('transfer-progress')}：${percent}% (${formatBytes(uploaded)} / ${formatBytes(total)})`);
-        });
-        currentAudioUrl = fileUrl;
-
-        setUploadProgress(100, `${t('transfer-success')} (${formatBytes(file.size)})`);
-        updateStatus('transcribe', t('status-creating-task'));
-        setTranscribeProgress(5, `${t('transcribe-status').split('：')[0]}：${t('transcribe-creating')}...`);
-
-        const startData = await createTranscription(fileUrl, file.name, language, durationSec, adminSecret);
-        const predictionId = startData.id;
-        if (!predictionId) throw new Error('Missing prediction id');
-
-        updateStatus('transcribe', t('status-transcribing'));
-        renderPredictionProgress(startData);
-
-        const finalData = await pollTranscriptionStatus(predictionId, (data) => {
-            renderPredictionProgress(data);
-        });
-
-        finishProcess(finalData.output);
-    } catch (error) {
-        console.error(error);
-        const elapsedSec = Math.round((Date.now() - startTime) / 1000);
-        trackTranscriptionComplete(elapsedSec, false);
-        showError(error.message);
-        resetUI();
-    }
-}
-
-function renderPredictionProgress(data) {
-    const status = data.status || 'starting';
-    const progress = data.progress || {};
-
-    const mappedStatus = statusToLocalized(status);
-    const computedPercent = computeTranscribePercent(status, progress);
-    const currentElapsed = Math.round((Date.now() - startTime) / 1000);
-    const elapsedValue = (typeof progress.elapsedSec === 'number' && progress.elapsedSec > 0) ? progress.elapsedSec : currentElapsed;
-    const elapsedSec = `${t('elapsed')}${elapsedValue}s`;
-    setTranscribeProgress(computedPercent, `${t('transcribe-status').split(t('colon'))[0]}${t('colon')}${mappedStatus} (${computedPercent}%)${elapsedSec}`);
-
-    const logsTail = Array.isArray(progress.logsTail) ? progress.logsTail : [];
-    const extras = [];
-    if (logsTail.length > 0) {
-        extras.push(`${t('logs-recent')}${t('colon')}${logsTail.join(' | ')}`);
-    }
-    if (progress.cleanup && typeof progress.cleanup === 'object') {
-        const c = progress.cleanup;
-        const removed = Number(c.removed_prompt_only_segments || 0) + Number(c.removed_hallucination_segments || 0) + Number(c.removed_noise_segments || 0);
-        const cleaned = Number(c.cleaned_prompt_fragments || 0) + Number(c.cleaned_hallucination_fragments || 0);
-        extras.push(t('process-cleanup', { cleaned, removed }));
-    }
-    if (progress.quality && typeof progress.quality === 'object') {
-        const warnings = Array.isArray(progress.quality.warnings) ? progress.quality.warnings : [];
-        if (warnings.length > 0) extras.push(`${t('quality-warning')}${t('colon')}${warnings[0]}`);
-    }
-    if (progress.secondPass && typeof progress.secondPass === 'object') {
-        const sp = progress.secondPass;
-        const spStatus = statusToLocalized(sp.status || '');
-        const spPercent = Number(sp.percent);
-        const hasPercent = Number.isFinite(spPercent);
-        const rangeCount = Array.isArray(sp.ranges) ? sp.ranges.length : 0;
-        const spStatusText = hasPercent ? `${spStatus} (${Math.max(0, Math.min(100, Math.round(spPercent)))}%)` : spStatus;
-        if (spStatusText) extras.push(`${t('second-pass')}${t('colon')}${spStatusText}${rangeCount > 0 ? `${t('second-pass-window')}${rangeCount}` : ''}`);
-    }
-}
-
-function computeTranscribePercent(status, progress) {
-    const explicit = (progress.percent !== undefined && progress.percent !== null) ? Number(progress.percent) : NaN;
-    if (Number.isFinite(explicit) && explicit >= 0 && explicit <= 100) {
-        transcribePercentHint = Math.max(transcribePercentHint, Math.round(explicit));
-        return transcribePercentHint;
-    }
-
-    if (status === 'succeeded') return 100;
-    if (status === 'failed' || status === 'canceled') return transcribePercentHint;
-    if (status === 'starting') {
-        transcribePercentHint = Math.max(transcribePercentHint, 8);
-        return transcribePercentHint;
-    }
-
-    if (status === 'processing') {
-        const elapsed = Number(progress.elapsedSec);
-        const estimated = Number.isFinite(elapsed) ? Math.min(95, 12 + Math.floor(elapsed / 6)) : 40;
-        transcribePercentHint = Math.max(transcribePercentHint, estimated);
-        return transcribePercentHint;
-    }
-
-    transcribePercentHint = Math.max(transcribePercentHint, 5);
-    return transcribePercentHint;
-}
-
-function statusToLocalized(status) {
-    const key = `status-${status}`;
-    const result = t(key);
-    if (result === key) return status; // fallback if key missing
-    return result;
-}
-
-function finishProcess(output) {
-    clearInterval(timerInterval);
-    const elapsedSec = Math.round((Date.now() - startTime) / 1000);
-    updateStatus('process', t('status-done'));
-    setTranscribeProgress(100, `${t('transcribe-status').split(t('colon'))[0]}${t('colon')}${t('transcribe-finished')} (100%)`);
-
-    let mdContent = '';
-    let jsonContent = '{}';
-    const outputJson = output && output.json ? output.json : output;
-    const transcriptStats = getTranscriptStatsFromJson(outputJson || {});
-    trackTranscriptionComplete(elapsedSec, true, transcriptStats);
-
-    if (output && output.markdown) {
-        mdContent = output.markdown;
-        jsonContent = JSON.stringify(output.json, null, 2);
-    } else {
-        mdContent = '### Raw Output\n\n' + JSON.stringify(output, null, 2);
-        jsonContent = JSON.stringify(output, null, 2);
-    }
-
-    transcriptPreview.textContent = mdContent;
-    setupDownload(downloadMdBtn, mdContent, `${currentFileBaseName}_transcript.md`, 'text/markdown', { exportFormat: 'md', viewSource: 'fresh' });
-    setupDownload(downloadJsonBtn, jsonContent, `${currentFileBaseName}_transcript.json`, 'application/json', { exportFormat: 'json', viewSource: 'fresh' });
-
-    const historyRecord = {
-        id: `ts_${Date.now()}`,
-        fileName: selectedFile ? selectedFile.name : currentFileBaseName,
-        fileSize: selectedFile ? selectedFile.size : 0,
-        timestamp: Date.now(),
-        markdown: mdContent,
-        json: output && output.json ? output.json : output,
-        inputSource: lastTranscriptionInputSource || lastSelectedSource || undefined,
-        audioDurationSec: lastTranscriptionAudioDurationSec || undefined,
-        audioUrl: currentAudioUrl
-    };
-    saveHistory(historyRecord);
-
-    inputArea.parentNode.classList.add('hidden');
-    resultArea.classList.remove('hidden');
-    trackTranscriptView('fresh', {
-        input_source: lastTranscriptionInputSource || undefined,
-        segments_count: transcriptStats.segments_count,
-        speakers_count: transcriptStats.speakers_count
-    });
-
-    checkAndDisplayQuota(); // Refresh quota after finished
-
-    if (selectedFile) {
-        resultMeta.textContent = `${selectedFile.name} (${formatBytes(selectedFile.size)})`;
-    } else {
-        resultMeta.textContent = '';
-    }
-
-    if (copyTranscriptBtn) {
-        copyTranscriptBtn.onclick = async () => {
-            try {
-                await navigator.clipboard.writeText(mdContent);
-                trackCopyTranscript('fresh');
-                const originalHtml = copyTranscriptBtn.innerHTML;
-                copyTranscriptBtn.innerHTML = `
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <polyline points="20 6 9 17 4 12"></polyline>
-                    </svg>
-                    <span>${t('copied')}</span>
-                `;
-                copyTranscriptBtn.classList.remove('secondary');
-                copyTranscriptBtn.classList.add('primary');
-                setTimeout(() => {
-                    copyTranscriptBtn.innerHTML = originalHtml;
-                    copyTranscriptBtn.classList.remove('primary');
-                    copyTranscriptBtn.classList.add('secondary');
-                }, 2000);
-            } catch (err) {
-                console.error('Failed to copy text: ', err);
-            }
-        };
-    }
-
-    if (recordPlaybackUrl || lastAudioUrl) {
-        resultPlayback.src = recordPlaybackUrl || lastAudioUrl;
-        resPlayerUI.classList.remove('hidden');
-        resFill.style.width = '0%';
-        resThumb.style.left = '0%';
-        resCurrentTime.textContent = '0:00';
-        resIconPlay.classList.remove('hidden');
-        resIconPause.classList.add('hidden');
-        resultPlayback.playbackRate = 1;
-        resSpeedBtn.textContent = '1×';
-    } else {
-        resPlayerUI.classList.add('hidden');
-    }
-
-    running = false;
-    setControlsDisabled(false);
 }
 
 function setupDownload(btn, content, filename, type, meta = {}) {
@@ -714,42 +512,6 @@ function setupDownload(btn, content, filename, type, meta = {}) {
         a.click();
         URL.revokeObjectURL(url);
     };
-}
-
-function resetRuntimeBox(file) {
-    transcribePercentHint = 0;
-    setUploadProgress(0, `${t('upload-status')} (${formatBytes(file.size)})`);
-    setTranscribeProgress(0, t('transcribe-status'));
-}
-
-function setUploadProgress(percent, text) {
-    uploadProgressFill.style.width = `${clampPercent(percent)}%`;
-    uploadStatusLine.textContent = text;
-}
-
-function setTranscribeProgress(percent, text) {
-    transcribeProgressFill.style.width = `${clampPercent(percent)}%`;
-    transcribeStatusLine.textContent = text;
-}
-
-function updateStatus(stepMode, text) {
-    statusText.textContent = text;
-    const order = ['upload', 'transcribe', 'process'];
-    const currentIndex = order.indexOf(stepMode);
-
-    document.querySelectorAll('.step').forEach((el) => {
-        el.classList.remove('active', 'completed');
-    });
-
-    for (let i = 0; i < order.length; i += 1) {
-        const el = document.getElementById(`step-${order[i]}`);
-        if (!el) continue;
-        if (i < currentIndex) {
-            el.classList.add('completed');
-        } else if (i === currentIndex) {
-            el.classList.add('active');
-        }
-    }
 }
 
 function showError(msg) {
@@ -788,18 +550,16 @@ function resetUI() {
     const splitDivider = document.querySelector('.split-divider');
     if (splitDivider) splitDivider.classList.remove('hidden');
 
-    const historyPanel = document.getElementById('history-panel');
     if (historyPanel) historyPanel.classList.remove('hidden');
 
     // 还原录音按钮与标签
     recordBtn.classList.remove('hidden', 'recording');
-    const recordLabel = document.getElementById('record-label');
     if (recordLabel) {
         recordLabel.classList.remove('hidden');
         recordLabel.textContent = t('record-start');
     }
-    document.getElementById('record-svg-mic').classList.remove('hidden');
-    document.getElementById('record-svg-stop').classList.add('hidden');
+    recordSvgMic.classList.remove('hidden');
+    recordSvgStop.classList.add('hidden');
     volumeMeter.classList.add('hidden');
 
     // 隐藏录音/上传信息栏及移除按钮
@@ -808,7 +568,6 @@ function resetUI() {
     if (removeRecordBtn) removeRecordBtn.classList.add('hidden');
 
     // 隐藏 action-wrapper（无文件时不显示语言选择和开始按钮）
-    const actionWrapper = document.getElementById('action-wrapper');
     if (actionWrapper) actionWrapper.classList.add('hidden');
 
     if (recordPlaybackUrl) {
@@ -846,6 +605,10 @@ function startTimer() {
         const diff = Math.floor((Date.now() - startTime) / 1000);
         timerDisplay.textContent = `${diff}s`;
     }, 1000);
+}
+
+function stopTimer() {
+    clearInterval(timerInterval);
 }
 
 async function checkAndDisplayQuota() {
@@ -901,142 +664,10 @@ function renderQuota(data) {
     }
 }
 
-function renderHistoryList() {
-    if (!historyList || !historyEmpty || !historyClearBtn) return;
-
-    const records = getAllHistory();
-    historyList.innerHTML = '';
-
-    if (records.length === 0) {
-        historyEmpty.classList.remove('hidden');
-        historyClearBtn.classList.add('hidden');
-        return;
-    }
-
-    historyEmpty.classList.add('hidden');
-    historyClearBtn.classList.remove('hidden');
-
-    records.forEach(record => {
-        const itemEl = document.createElement('div');
-        itemEl.className = 'history-item';
-
-        const infoEl = document.createElement('div');
-        infoEl.className = 'history-info';
-
-        const titleEl = document.createElement('div');
-        titleEl.className = 'history-title';
-        titleEl.textContent = record.fileName;
-
-        const timeEl = document.createElement('div');
-        timeEl.className = 'history-time';
-        const d = new Date(record.timestamp);
-        timeEl.textContent = `${d.toLocaleDateString()} ${d.toLocaleTimeString()}`;
-
-        infoEl.appendChild(titleEl);
-        infoEl.appendChild(timeEl);
-
-        const delBtn = document.createElement('button');
-        delBtn.className = 'history-del-btn';
-        delBtn.innerHTML = `
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="3 6 5 6 21 6"></polyline>
-                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-            </svg>
-        `;
-
-        delBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            modalContext = 'delete-history';
-            modalTitle.textContent = t('record-remove-confirm');
-            confirmOkBtn.textContent = t('confirm-ok-label');
-            confirmModal.dataset.deleteId = record.id;
-            confirmModal.classList.remove('hidden');
-        });
-
-        itemEl.appendChild(infoEl);
-        itemEl.appendChild(delBtn);
-
-        itemEl.addEventListener('click', () => {
-            viewHistoryItem(record.id);
-        });
-
-        historyList.appendChild(itemEl);
-    });
-}
-
-function viewHistoryItem(id) {
-    const record = getHistoryById(id);
-    if (!record) return;
-
-    resetUI();
-
-    inputArea.parentNode.classList.add('hidden');
-    resultArea.classList.remove('hidden');
-
-    transcriptPreview.textContent = record.markdown;
-
-    const mdContent = record.markdown;
-    const jsonContent = JSON.stringify(record.json, null, 2);
-    const stats = getTranscriptStatsFromJson(record.json || {});
-
-    trackHistoryView(getAllHistory().length);
-    trackTranscriptView('history', {
-        input_source: record.inputSource || undefined,
-        segments_count: stats.segments_count,
-        speakers_count: stats.speakers_count
-    });
-
-    setupDownload(downloadMdBtn, mdContent, `${extractFileBaseName(record.fileName)}_transcript.md`, 'text/markdown', { exportFormat: 'md', viewSource: 'history' });
-    setupDownload(downloadJsonBtn, jsonContent, `${extractFileBaseName(record.fileName)}_transcript.json`, 'application/json', { exportFormat: 'json', viewSource: 'history' });
-
-    resultMeta.textContent = `${record.fileName} (${formatBytes(record.fileSize || 0)})`;
-
-    if (copyTranscriptBtn) {
-        copyTranscriptBtn.onclick = async () => {
-            try {
-                await navigator.clipboard.writeText(mdContent);
-                trackCopyTranscript('history');
-                const originalHtml = copyTranscriptBtn.innerHTML;
-                copyTranscriptBtn.innerHTML = `
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <polyline points="20 6 9 17 4 12"></polyline>
-                    </svg>
-                    <span>${t('copied')}</span>
-                `;
-                copyTranscriptBtn.classList.remove('secondary');
-                copyTranscriptBtn.classList.add('primary');
-                setTimeout(() => {
-                    copyTranscriptBtn.innerHTML = originalHtml;
-                    copyTranscriptBtn.classList.remove('primary');
-                    copyTranscriptBtn.classList.add('secondary');
-                }, 2000);
-            } catch (err) {
-                console.error('Failed to copy text: ', err);
-            }
-        };
-    }
-
-    if (record.audioUrl) {
-        resultPlayback.src = record.audioUrl;
-        resPlayerUI.classList.remove('hidden');
-        resFill.style.width = '0%';
-        resThumb.style.left = '0%';
-        resCurrentTime.textContent = '0:00';
-        resIconPlay.classList.remove('hidden');
-        resIconPause.classList.add('hidden');
-        resultPlayback.playbackRate = 1;
-        resSpeedBtn.textContent = '1×';
-    } else {
-        resPlayerUI.classList.add('hidden');
-    }
-}
-
 // --- Initialize App ---
 function initialize() {
     initAnalytics();
     // App Language Dropdown
-    const appLangTrigger = document.getElementById('app-lang-trigger');
-    const appLangOptions = document.getElementById('app-lang-options');
     const appLangItems = appLangOptions.querySelectorAll('.dropdown-item');
 
     updateAppLanguageUI(getCurrentLang());
@@ -1067,7 +698,7 @@ function initialize() {
         if (languageSelectTrigger.classList.contains('disabled')) return;
         e.stopPropagation();
         languageOptions.classList.toggle('hidden');
-        document.getElementById('app-lang-options').classList.add('hidden');
+        appLangOptions.classList.add('hidden');
     });
 
     languageItems.forEach(item => {
@@ -1108,7 +739,7 @@ function initialize() {
     });
 
     startBtn.addEventListener('click', async () => {
-        await startTranscriptionTask(selectedFile, currentTranscriptionLanguage);
+        await transcriptionController.startTranscriptionTask(selectedFile, currentTranscriptionLanguage);
     });
 
     newUploadBtn.addEventListener('click', () => {
@@ -1141,20 +772,20 @@ function initialize() {
     });
 
     recordBtn.addEventListener('click', () => {
-        if (recorder.isRecording) {
+        if (recordingController.isRecording()) {
             modalContext = 'stop';
             modalTitle.textContent = t('record-stop-confirm');
             confirmOkBtn.textContent = t('confirm-ok');
             confirmModal.classList.remove('hidden');
         } else {
-            startRecording();
+            recordingController.startRecording();
         }
     });
 
     confirmOkBtn.addEventListener('click', () => {
         confirmModal.classList.add('hidden');
         if (modalContext === 'stop') {
-            stopRecording();
+            recordingController.stopRecording();
         } else if (modalContext === 'remove') {
             trackSelectionClear(lastSelectedSource || (recordPlaybackUrl ? 'record' : (selectedFile ? 'upload' : 'unknown')));
             updateSelectedFile(null);

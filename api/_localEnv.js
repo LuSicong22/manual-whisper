@@ -18,12 +18,19 @@ export function getEnv(name) {
  * Basic security check to ensure requests come from our authorized frontend.
  */
 export function validateAppKey(request) {
-    const key = request.headers['x-app-key'];
-    // We use a derivation of the Replicate token as a simple internal "secret"
-    const replicateToken = getEnv("REPLICATE_API_TOKEN") || "";
-    // Using the first 12 chars as the app key
-    const expectedKey = replicateToken.slice(0, 12);
-    return key && key === expectedKey;
+    const key = typeof request.headers['x-app-key'] === 'string'
+        ? request.headers['x-app-key'].trim()
+        : '';
+    if (!key) return false;
+
+    // Preferred explicit shared key.
+    const explicitKey = getEnv("APP_SHARED_KEY") || "";
+
+    // Backward compatibility: legacy key derived from REPLICATE_API_TOKEN prefix.
+    const legacyKey = (getEnv("REPLICATE_API_TOKEN") || "").slice(0, 12);
+
+    const expectedKeys = [explicitKey, legacyKey].filter(Boolean);
+    return expectedKeys.includes(key);
 }
 
 function loadLocalEnv() {

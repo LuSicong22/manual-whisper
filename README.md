@@ -32,6 +32,7 @@ npm install
 Create a `.env.local` file and add your Replicate token:
 ```
 REPLICATE_API_TOKEN=YOUR_TOKEN_HERE
+APP_SHARED_KEY=YOUR_SHARED_SECRET
 ```
 
 ### 3. Run Locally
@@ -47,13 +48,13 @@ To get a beautiful `.web.app` custom domain while enjoying free backend resource
 ### Step 1: Deploy Backend to Vercel
 1. Run in your project directory: `vercel --prod`
 2. Follow the prompts and save the generated Vercel domain (e.g., `https://your-proj.vercel.app`).
-3. Set your `REPLICATE_API_TOKEN` environment variable in the Vercel dashboard.
+3. Set `REPLICATE_API_TOKEN` and `APP_SHARED_KEY` in the Vercel dashboard.
 
 ### Step 2: Deploy Frontend to Firebase
-1. Open `apiService.js` in the root directory.
-2. Update the `VERCEL_API_BASE` variable with your new Vercel domain:
+1. Open `clientConfig.js` in the root directory.
+2. Update the `API_BASE` value in `clientConfig.js` with your new Vercel domain:
    ```javascript
-   const VERCEL_API_BASE = 'https://your-proj.vercel.app';
+   const DEFAULT_API_BASE = 'https://your-proj.vercel.app';
    ```
 3. Run in your project directory: `firebase deploy --only hosting`
 
@@ -85,6 +86,7 @@ npm install
 创建 `.env.local` 文件并填入：
 ```
 REPLICATE_API_TOKEN=你的TOKEN
+APP_SHARED_KEY=你的共享密钥
 ```
 
 ### 3. 本地运行
@@ -100,13 +102,13 @@ vercel dev
 ### 第一步：部署后端到 Vercel
 1. 在项目目录执行：`vercel --prod`
 2. 根据提示完成部署，记录下生成的 Vercel 域名（如 `https://your-proj.vercel.app`）。
-3. 在 Vercel 后台配置环境变量 `REPLICATE_API_TOKEN`。
+3. 在 Vercel 后台配置环境变量 `REPLICATE_API_TOKEN` 和 `APP_SHARED_KEY`。
 
 ### 第二步：部署前端到 Firebase
-1. 打开根目录下的 `apiService.js`。
-2. 将 `VERCEL_API_BASE` 的值修改为你刚刚从 Vercel 获取的域名。
+1. 打开根目录下的 `clientConfig.js`。
+2. 打开根目录 `clientConfig.js`，将 `DEFAULT_API_BASE` 修改为你刚从 Vercel 获取的域名。
    ```javascript
-   const VERCEL_API_BASE = 'https://your-proj.vercel.app';
+   const DEFAULT_API_BASE = 'https://your-proj.vercel.app';
    ```
 3. 在项目目录执行：`firebase deploy --only hosting`
 

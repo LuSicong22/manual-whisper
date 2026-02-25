@@ -5,10 +5,17 @@
     "scripts": {
         "start": "vercel dev",
         "deploy:frontend": "firebase deploy --only hosting",
-        "deploy:frontend:prod": "firebase deploy --only hosting --project manual-whisper-test"
+        "deploy:frontend:prod": "firebase deploy --only hosting --project manual-whisper-test",
+        "smoke:install": "playwright install chromium",
+        "smoke:prod": "node scripts/smoke-prod-recording.mjs",
+        "smoke:prod:nonblocking": "node scripts/smoke-prod-nonblocking.mjs",
+        "deploy:frontend:prod:verified": "npm run deploy:frontend:prod && npm run smoke:prod:nonblocking"
     },
     "dependencies": {
         "@vercel/blob": "^2.3.0",
         "replicate": "^1.4.0"
+    },
+    "devDependencies": {
+        "playwright": "^1.56.1"
     }
 }

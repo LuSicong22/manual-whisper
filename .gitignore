@@ -14,6 +14,10 @@ dist/
 *.flac
 *.ogg
 *.wma
+!tests/fixtures/*.wav
+
+# --- Smoke Reports ---
+reports/smoke/
 
 # --- OS Files ---
 .DS_Store

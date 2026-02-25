@@ -26,10 +26,10 @@ body {
   background-color: var(--bg-color);
   color: var(--text);
   margin: 0;
-  min-height: 100vh;
+  height: 100vh;
   display: flex;
   flex-direction: column;
-  overflow-x: hidden;
+  overflow: hidden;
 }
 
 /* Background Elements for Spatial Depth */
@@ -282,12 +282,17 @@ body {
   justify-content: center;
   align-items: center;
   width: 100%;
-  padding: 24px 20px;
-  /* Reduced from 40px */
+  padding: 16px 20px;
   position: relative;
   z-index: 10;
-  min-height: calc(100vh - 80px);
-  /* Adjusted */
+}
+
+/* Initial state: action-wrapper hidden → content is shorter.
+   Extra bottom padding biases flex-center upward so the
+   upload/record area sits at the same visual height as when
+   the full action-wrapper is visible. */
+.layout-wrapper:has(#action-wrapper.hidden) {
+  padding-bottom: 180px;
 }
 
 .input-container {
@@ -316,14 +321,12 @@ body {
   text-align: center;
   color: var(--text-muted);
   font-size: 1rem;
-  /* Reduced from 1.1rem */
-  margin-bottom: 20px;
-  /* Reduced from 32px */
+  margin-bottom: 32px;
   max-width: 600px;
 }
 
 .hero-panel {
-  padding: 24px 0;
+  padding: 8px 0;
 }
 
 .glass-panel {
@@ -350,7 +353,7 @@ body {
   align-items: stretch;
   justify-content: center;
   gap: 30px;
-  margin-bottom: 40px;
+  margin-bottom: 20px;
 }
 
 @media (max-width: 768px) {
@@ -418,8 +421,7 @@ body {
   background: rgba(248, 250, 252, 0.6);
   border-radius: 20px;
   transition: all 0.3s ease;
-  min-height: 220px;
-  /* Reduced from 280px */
+  min-height: 160px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -431,7 +433,7 @@ body {
   width: 100%;
   border: 2px dashed #cbd5e1;
   cursor: pointer;
-  padding: 40px;
+  padding: 24px;
   position: relative;
   overflow: hidden;
 }
@@ -517,11 +519,9 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: 220px;
-  /* Reduced from 280px */
+  min-height: 160px;
   transition: all 0.3s ease;
-  padding: 20px 40px;
-  /* Reduced vertical padding from 40px */
+  padding: 12px 40px;
 }
 
 .record-module:hover {
@@ -1107,6 +1107,8 @@ body {
   margin: 0 auto 60px;
   padding: 0 40px;
   animation: slideUp 0.6s ease;
+  overflow-y: auto;
+  max-height: calc(100vh - 80px);
 }
 
 .split-result-container {

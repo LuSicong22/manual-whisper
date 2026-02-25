@@ -5,6 +5,7 @@ import { spawn } from 'node:child_process';
 const DEFAULT_PROJECT_ID = 'manual-whisper-test';
 const DEFAULT_SITE_ID = 'flashnotes-ai';
 const PREVIEW_EXPIRES = '1d';
+const DEFAULT_SMOKE_API_BASE = 'https://whisper-omega.vercel.app';
 
 function hasArg(flag) {
     return process.argv.includes(flag);
@@ -114,6 +115,7 @@ async function main() {
     const siteId = resolveSiteId();
     const channelId = buildChannelId();
     const dryRun = hasArg('--dry-run') || hasArg('-n') || String(process.env.GATE_DRY_RUN || '').trim() === '1';
+    const smokeApiBase = (process.env.SMOKE_RUNTIME_API_BASE || DEFAULT_SMOKE_API_BASE).trim();
 
     console.log('[gate] start: preview deploy -> smoke -> production deploy');
     console.log(`[gate] project=${projectId} site=${siteId} channel=${channelId}`);
@@ -162,6 +164,7 @@ async function main() {
         env: {
             ...process.env,
             PROD_FRONTEND_URL: previewUrl,
+            SMOKE_RUNTIME_API_BASE: smokeApiBase,
         },
         dryRun,
     });

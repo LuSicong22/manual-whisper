@@ -28,6 +28,13 @@ function toAbsolutePath(filePath) {
     return path.isAbsolute(filePath) ? filePath : path.resolve(process.cwd(), filePath);
 }
 
+function readOptional(name) {
+    const raw = process.env[name];
+    if (typeof raw !== 'string') return '';
+    const trimmed = raw.trim();
+    return trimmed;
+}
+
 function createResult(config) {
     return {
         status: 'failed',
@@ -141,8 +148,12 @@ async function run() {
     const recordSeconds = readPositiveInt('SMOKE_RECORD_SECONDS', DEFAULT_RECORD_SECONDS);
     const timeoutMs = readPositiveInt('SMOKE_TIMEOUT_MS', DEFAULT_TIMEOUT_MS);
     const headless = readBool('SMOKE_HEADLESS', true);
+    const runtimeApiBase = readOptional('SMOKE_RUNTIME_API_BASE');
+    const runtimeAppSharedKey = readOptional('SMOKE_RUNTIME_APP_SHARED_KEY');
 
     const result = createResult({ targetUrl, fixturePath, recordSeconds, timeoutMs, headless });
+    result.config.runtimeApiBase = runtimeApiBase || null;
+    result.config.runtimeAppSharedKey = runtimeAppSharedKey ? '[provided]' : null;
 
     let browser;
     try {
@@ -164,6 +175,23 @@ async function run() {
         const context = await browser.newContext({ permissions: ['microphone'] });
         const page = await context.newPage();
         page.setDefaultTimeout(Math.min(30000, timeoutMs));
+
+        if (runtimeApiBase || runtimeAppSharedKey) {
+            await page.addInitScript((cfg) => {
+                const base = (window && window.__FLASHNOTES_CONFIG && typeof window.__FLASHNOTES_CONFIG === 'object')
+                    ? window.__FLASHNOTES_CONFIG
+                    : {};
+                window.__FLASHNOTES_CONFIG = {
+                    ...base,
+                    ...(cfg.apiBase ? { apiBase: cfg.apiBase } : {}),
+                    ...(cfg.appSharedKey ? { appSharedKey: cfg.appSharedKey } : {}),
+                };
+            }, {
+                apiBase: runtimeApiBase,
+                appSharedKey: runtimeAppSharedKey,
+            });
+            addStep(result, 'runtime_config_injected', `apiBase=${runtimeApiBase || 'default'}`);
+        }
 
         addStep(result, 'open_page');
         await page.goto(targetUrl, { waitUntil: 'domcontentloaded' });

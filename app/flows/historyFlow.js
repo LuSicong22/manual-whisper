@@ -14,7 +14,6 @@ export function createHistoryController({
     trackTranscriptView,
     setupDownload,
     downloadMdBtn,
-    downloadJsonBtn,
     extractFileBaseName,
     formatBytes,
     resultMeta,
@@ -43,7 +42,6 @@ export function createHistoryController({
         transcriptPreview.textContent = record.markdown;
 
         const mdContent = record.markdown;
-        const jsonContent = JSON.stringify(record.json, null, 2);
         const stats = getTranscriptStatsFromJson(record.json || {});
 
         trackHistoryView(getAllHistory().length);
@@ -54,7 +52,6 @@ export function createHistoryController({
         });
 
         setupDownload(downloadMdBtn, mdContent, `${extractFileBaseName(record.fileName)}_transcript.md`, 'text/markdown', { exportFormat: 'md', viewSource: 'history' });
-        setupDownload(downloadJsonBtn, jsonContent, `${extractFileBaseName(record.fileName)}_transcript.json`, 'application/json', { exportFormat: 'json', viewSource: 'history' });
 
         resultMeta.textContent = `${record.fileName} (${formatBytes(record.fileSize || 0)})`;
 
@@ -143,4 +140,3 @@ export function createHistoryController({
         viewHistoryItem,
     };
 }
-

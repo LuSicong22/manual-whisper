@@ -23,7 +23,6 @@ export const dom = {
     timerDisplay: document.getElementById('timer'),
     transcriptPreview: document.getElementById('transcript-preview'),
     downloadMdBtn: document.getElementById('download-md'),
-    downloadJsonBtn: document.getElementById('download-json'),
     copyTranscriptBtn: document.getElementById('copy-transcript'),
     newUploadBtn: document.getElementById('new-upload-btn'),
     resultMeta: document.getElementById('result-meta'),

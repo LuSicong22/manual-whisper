@@ -208,22 +208,18 @@ export function createTranscriptionController(deps) {
         setTranscribeProgress(100, `${t('transcribe-status').split(t('colon'))[0]}${t('colon')}${t('transcribe-finished')} (100%)`);
 
         let mdContent = '';
-        let jsonContent = '{}';
         const outputJson = output && output.json ? output.json : output;
         const transcriptStats = getTranscriptStatsFromJson(outputJson || {});
         trackTranscriptionComplete(elapsedSec, true, transcriptStats);
 
         if (output && output.markdown) {
             mdContent = output.markdown;
-            jsonContent = JSON.stringify(output.json, null, 2);
         } else {
             mdContent = '### Raw Output\n\n' + JSON.stringify(output, null, 2);
-            jsonContent = JSON.stringify(output, null, 2);
         }
 
         ui.transcriptPreview.textContent = mdContent;
         setupDownload(ui.downloadMdBtn, mdContent, `${getCurrentFileBaseName()}_transcript.md`, 'text/markdown', { exportFormat: 'md', viewSource: 'fresh' });
-        setupDownload(ui.downloadJsonBtn, jsonContent, `${getCurrentFileBaseName()}_transcript.json`, 'application/json', { exportFormat: 'json', viewSource: 'fresh' });
 
         const selectedFile = getSelectedFile();
         const historyRecord = {
@@ -283,4 +279,3 @@ export function createTranscriptionController(deps) {
         startTranscriptionTask,
     };
 }
-

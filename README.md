@@ -60,39 +60,55 @@ To get a beautiful `.web.app` custom domain while enjoying free backend resource
 
 You're all set! You can now access your free transcription service via your Firebase domain.
 
-## ✅ Post-Deploy Smoke Check (Production Recording Flow)
+## ✅ Gated Production Deploy (Auto Smoke + Block on Failure)
 
-This repo supports an automated, non-blocking smoke check right after frontend deploy.
+This repo supports a gated production deploy flow:
+- Deploy to a Firebase preview channel first
+- Run recording-flow smoke test automatically on preview URL
+- Deploy to production only if smoke passes
 
 ### 1. Install Playwright browser once
 ```bash
 npm run smoke:install
 ```
 
-### 2. Run deploy + production smoke check
+### 2. Run gated production deploy
 ```bash
-npm run deploy:frontend:prod:verified
+npm run deploy:frontend:prod
 ```
 
-### 3. What it validates
+### 3. Dry-run the gate flow (no real deploy)
+```bash
+npm run deploy:frontend:prod:dry-run
+```
+
+### 4. What it validates
 - Click `#record-btn` to start recording
 - Wait a short recording duration
 - Click `#record-btn` and confirm `#confirm-ok` to stop
 - Click `#start-btn` to submit
 - Wait for `#result-area` and assert `#transcript-preview` is non-empty
 
-### 4. Behavior on failure
+### 5. Behavior on failure
 - The smoke step writes reports to:
   - `reports/smoke/latest.json`
   - `reports/smoke/<timestamp>.json`
-- The smoke step is non-blocking by default (deploy stays successful).
+- Production deploy is blocked if smoke fails.
+- The preview channel remains available for debugging and expires in 1 day.
 
-### 5. Environment variables (optional)
+### 5. Emergency bypass (use carefully)
+```bash
+npm run deploy:frontend:prod:raw
+```
+
+### 6. Environment variables (optional)
 - `PROD_FRONTEND_URL` (default: `https://flashnotes-ai.web.app`)
 - `SMOKE_AUDIO_FIXTURE` (default: `tests/fixtures/smoke-25s.wav`)
 - `SMOKE_RECORD_SECONDS` (default: `8`)
 - `SMOKE_TIMEOUT_MS` (default: `480000`)
 - `SMOKE_HEADLESS` (default: `true`)
+- `FIREBASE_PROJECT_ID` (default: `manual-whisper-test`)
+- `FIREBASE_HOSTING_SITE` (default: `flashnotes-ai`)
 
 <br>
 
@@ -148,39 +164,55 @@ vercel dev
 
 一切就绪！你现在可以通过 Firebase 域名访问完全免费的转写服务。
 
-## ✅ 部署后自动验收（生产录音主流程）
+## ✅ 阻断式生产部署门禁（自动验收）
 
-项目已支持“前端部署后自动跑主流程验收”（默认非阻断发布）。
+项目已支持“先测后发”的阻断式部署：
+- 先发布到 Firebase Preview Channel
+- 自动对预览地址执行录音主流程 smoke
+- 仅当 smoke 通过才发布正式环境
 
 ### 1. 首次安装 Playwright 浏览器
 ```bash
 npm run smoke:install
 ```
 
-### 2. 一键执行“部署 + 验收”
+### 2. 一键执行阻断式生产部署
 ```bash
-npm run deploy:frontend:prod:verified
+npm run deploy:frontend:prod
 ```
 
-### 3. 验收覆盖内容
+### 3. 仅演练门禁流程（不真实部署）
+```bash
+npm run deploy:frontend:prod:dry-run
+```
+
+### 4. 验收覆盖内容
 - 点击 `#record-btn` 开始录音
 - 等待短时录音
 - 再次点击 `#record-btn` 并在弹窗点击 `#confirm-ok` 结束录音
 - 点击 `#start-btn` 发起转写
 - 等待 `#result-area` 出现，并断言 `#transcript-preview` 非空
 
-### 4. 失败行为
+### 5. 失败行为
 - 报告落盘到：
   - `reports/smoke/latest.json`
   - `reports/smoke/<timestamp>.json`
-- 默认失败不阻断发布（仅输出失败摘要和报告）。
+- smoke 失败会阻断正式部署（正式环境不会更新）。
+- 预览频道保留 1 天用于排查，随后自动过期。
 
-### 5. 可选环境变量
+### 6. 紧急绕过（谨慎使用）
+```bash
+npm run deploy:frontend:prod:raw
+```
+
+### 7. 可选环境变量
 - `PROD_FRONTEND_URL`（默认：`https://flashnotes-ai.web.app`）
 - `SMOKE_AUDIO_FIXTURE`（默认：`tests/fixtures/smoke-25s.wav`）
 - `SMOKE_RECORD_SECONDS`（默认：`8`）
 - `SMOKE_TIMEOUT_MS`（默认：`480000`）
 - `SMOKE_HEADLESS`（默认：`true`）
+- `FIREBASE_PROJECT_ID`（默认：`manual-whisper-test`）
+- `FIREBASE_HOSTING_SITE`（默认：`flashnotes-ai`）
 
 ---
 

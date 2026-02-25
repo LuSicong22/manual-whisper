@@ -20,7 +20,10 @@
         window.dataLayer = window.dataLayer || [];
         function gtag() { dataLayer.push(arguments); }
         gtag('js', new Date());
-        gtag('config', 'G-X7VZ3BYVZM');
+        const params = new URLSearchParams(window.location.search || '');
+        const cfg = {};
+        if (params.get('debug') === '1') cfg.debug_mode = true;
+        gtag('config', 'G-X7VZ3BYVZM', cfg);
     </script>
 </head>
 

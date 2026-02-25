@@ -6,7 +6,26 @@ import { t, setAppLang, getCurrentLang, updateDOMTranslations } from './i18n.js'
 import { uploadFile, createTranscription, pollTranscriptionStatus, getQuota } from './apiService.js';
 import { AudioRecorder } from './audioRecorder.js';
 import { saveHistory, getAllHistory, getHistoryById, deleteHistoryById, clearAllHistory } from './historyStore.js';
-import { initAnalytics, trackError, trackTranscriptionStart, trackTranscriptionComplete } from './analytics.js';
+import {
+    initAnalytics,
+    bucketizeSeconds,
+    trackError,
+    trackRecordStart,
+    trackRecordStartFailed,
+    trackRecordStop,
+    trackFileSelect,
+    trackSelectionClear,
+    trackTranscriptionBlocked,
+    trackTranscriptionStart,
+    trackTranscriptionComplete,
+    trackTranscriptView,
+    trackCopyTranscript,
+    trackExportTranscript,
+    trackAudioDownload,
+    trackHistoryView,
+    trackHistoryDelete,
+    trackHistoryClear
+} from './analytics.js';
 
 // --- DOM Elements ---
 const inputArea = document.getElementById('input-area');
@@ -97,6 +116,10 @@ let transcribePercentHint = 0;
 let currentTranscriptionLanguage = getCurrentLang(); // Default to app language
 let modalContext = null; // 'stop' or 'remove'
 let lastQuotaData = null;
+let lastSelectedSource = null; // 'upload' | 'record' | null
+let lastTranscriptionInputSource = null; // 'upload' | 'record' | null
+let lastTranscriptionAudioDurationSec = 0;
+let lastTranscriptionAudioDurationBucket = 'unknown';
 
 // --- Initialize Components ---
 const recorder = new AudioRecorder();
@@ -117,6 +140,40 @@ let recordStartTime = null;
 let recordTimerInterval = null;
 
 // --- Functions ---
+
+function getFileExt(name) {
+    if (!name || typeof name !== 'string') return '';
+    const idx = name.lastIndexOf('.');
+    if (idx < 0 || idx === name.length - 1) return '';
+    return name.slice(idx + 1).toLowerCase();
+}
+
+function uniqueSpeakerCount(segments) {
+    if (!Array.isArray(segments)) return 0;
+    const set = new Set();
+    for (const seg of segments) {
+        const s = seg && typeof seg.speaker === 'string' ? seg.speaker.trim() : '';
+        if (s) set.add(s);
+    }
+    return set.size;
+}
+
+function getTranscriptStatsFromJson(json) {
+    const segments = Array.isArray(json && json.segments) ? json.segments : [];
+    const speakersCount = uniqueSpeakerCount(segments);
+    const cleanup = json && json.cleanup_stats ? json.cleanup_stats : null;
+    const removedTotal = cleanup
+        ? Number(cleanup.removed_prompt_only_segments || 0) + Number(cleanup.removed_hallucination_segments || 0) + Number(cleanup.removed_noise_segments || 0)
+        : 0;
+    const warnings = json && json.quality_report && Array.isArray(json.quality_report.warnings) ? json.quality_report.warnings : [];
+
+    return {
+        segments_count: segments.length,
+        speakers_count: speakersCount,
+        removed_segments_count: removedTotal,
+        quality_warning_count: warnings.length
+    };
+}
 
 function setupCustomPlayer(audio, playBtn, iconPlay, iconPause, currentTime, durationTime, speedBtn, track, fill, thumb, downloadBtn) {
     playBtn.addEventListener('click', () => {
@@ -166,6 +223,7 @@ function setupCustomPlayer(audio, playBtn, iconPlay, iconPause, currentTime, dur
     if (downloadBtn) {
         downloadBtn.addEventListener('click', () => {
             if (!audio.src) return;
+            trackAudioDownload(audio.id === 'record-playback' ? 'record_preview' : 'result_audio');
             const a = document.createElement('a');
             a.href = audio.src;
             // Determine extension from original filename if possible, otherwise .wav for recordings
@@ -224,12 +282,13 @@ function updateTranscriptionLanguageUI(langValue, save = true) {
     });
 }
 
-function updateSelectedFile(file, source = 'upload') {
+function updateSelectedFile(file, source = 'upload', meta = {}) {
     selectedFile = file;
     const actionWrapper = document.getElementById('action-wrapper');
     const splitDivider = document.querySelector('.split-divider');
 
     if (!file) {
+        lastSelectedSource = null;
         if (selectedFileName) selectedFileName.textContent = '';
         if (fileInfoBar) fileInfoBar.classList.add('hidden');
         if (recordInfoBar) recordInfoBar.classList.add('hidden');
@@ -252,7 +311,11 @@ function updateSelectedFile(file, source = 'upload') {
         return;
     }
 
+    lastSelectedSource = source;
+
     if (source === 'upload') {
+        const fileSizeMB = Math.round(file.size / 1024 / 1024 * 10) / 10;
+        trackFileSelect(meta.selectMethod || 'unknown', getFileExt(file.name), fileSizeMB);
         selectedFileName.textContent = `${file.name} (${formatBytes(file.size)})`;
         if (fileInfoBar) fileInfoBar.classList.remove('hidden');
         if (recordInfoBar) recordInfoBar.classList.add('hidden');
@@ -287,6 +350,7 @@ async function startRecording() {
         await recorder.start();
 
         recordStartTime = Date.now();
+        trackRecordStart();
         updateSelectedFile(null);
         uploadSection.classList.add('dimmed');
 
@@ -311,16 +375,21 @@ async function startRecording() {
             recordStatus.textContent = t('recording') + `${mm}:${ss}`;
         }, 500);
     } catch (err) {
+        trackRecordStartFailed(err && err.message ? err.message : String(err));
         showError(err.message);
     }
 }
 
 function stopRecording() {
     const wavBlob = recorder.stop();
+    const recordDurationSec = recordStartTime ? Math.max(0, Math.round((Date.now() - recordStartTime) / 1000)) : 0;
     const now = new Date();
     const ts = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}`;
     const fileName = `${t('recording-name-prefix')}${ts}.wav`;
     const file = new File([wavBlob], fileName, { type: 'audio/wav' });
+
+    trackRecordStop(recordDurationSec, Math.round(file.size / 1024 / 1024 * 10) / 10);
+    recordStartTime = null;
 
     updateSelectedFile(file, 'record');
     recordStatus.textContent = t('record-done') + `${formatBytes(file.size)}`;
@@ -372,15 +441,25 @@ async function startTranscriptionTask(file, language) {
         showError(t('error-select-file'));
         return;
     }
+    const inputSource = recordPlaybackUrl ? 'record' : 'upload';
     if (file.size <= 0) {
+        trackTranscriptionBlocked('empty_file', { input_source: inputSource });
         showError(t('error-file-empty'));
         return;
     }
     if (file.size > MAX_UPLOAD_BYTES) {
+        trackTranscriptionBlocked('file_too_large', {
+            input_source: inputSource,
+            file_size_mb: Math.round(file.size / 1024 / 1024 * 10) / 10
+        });
         showError(t('error-file-too-large'));
         return;
     }
     if (!SUPPORTED_EXTENSIONS.some(ext => file.name.toLowerCase().endsWith(ext))) {
+        trackTranscriptionBlocked('unsupported_format', {
+            input_source: inputSource,
+            file_ext: getFileExt(file.name)
+        });
         showError(`${t('error-file-format')}${t('colon')}${SUPPORTED_EXTENSIONS.join(', ')}`);
         return;
     }
@@ -389,8 +468,32 @@ async function startTranscriptionTask(file, language) {
     running = true;
     setControlsDisabled(true);
 
-    const inputSource = recordPlaybackUrl ? 'record' : 'upload';
-    trackTranscriptionStart(language, inputSource, Math.round(file.size / 1024 / 1024 * 10) / 10);
+    lastTranscriptionInputSource = inputSource;
+    const fileSizeMB = Math.round(file.size / 1024 / 1024 * 10) / 10;
+    const hasHistory = getAllHistory().length > 0 ? '1' : '0';
+
+    const adminSecret = new URLSearchParams(window.location.search).get('admin');
+    const durationSec = await getAudioDuration(file);
+    lastTranscriptionAudioDurationSec = Math.round(Number(durationSec) || 0);
+    lastTranscriptionAudioDurationBucket = bucketizeSeconds(durationSec);
+
+    if (!adminSecret && durationSec > 60 * 60) {
+        trackTranscriptionBlocked('duration_limit', {
+            input_source: inputSource,
+            audio_duration_sec: lastTranscriptionAudioDurationSec,
+            audio_duration_bucket: lastTranscriptionAudioDurationBucket
+        });
+        running = false;
+        setControlsDisabled(false);
+        showError(t('error-duration-limit'));
+        return;
+    }
+
+    trackTranscriptionStart(language, inputSource, fileSizeMB, {
+        audio_duration_sec: lastTranscriptionAudioDurationSec,
+        audio_duration_bucket: lastTranscriptionAudioDurationBucket,
+        has_history: hasHistory
+    });
 
     inputArea.classList.add('hidden');
     progressArea.classList.remove('hidden');
@@ -411,13 +514,6 @@ async function startTranscriptionTask(file, language) {
         setUploadProgress(100, `${t('transfer-success')} (${formatBytes(file.size)})`);
         updateStatus('transcribe', t('status-creating-task'));
         setTranscribeProgress(5, `${t('transcribe-status').split('：')[0]}：${t('transcribe-creating')}...`);
-
-        const adminSecret = new URLSearchParams(window.location.search).get('admin');
-        const durationSec = await getAudioDuration(file);
-
-        if (!adminSecret && durationSec > 60 * 60) {
-            throw new Error(t('error-duration-limit'));
-        }
 
         const startData = await createTranscription(fileUrl, file.name, language, durationSec, adminSecret);
         const predictionId = startData.id;
@@ -512,12 +608,14 @@ function statusToLocalized(status) {
 function finishProcess(output) {
     clearInterval(timerInterval);
     const elapsedSec = Math.round((Date.now() - startTime) / 1000);
-    trackTranscriptionComplete(elapsedSec, true);
     updateStatus('process', t('status-done'));
     setTranscribeProgress(100, `${t('transcribe-status').split(t('colon'))[0]}${t('colon')}${t('transcribe-finished')} (100%)`);
 
     let mdContent = '';
     let jsonContent = '{}';
+    const outputJson = output && output.json ? output.json : output;
+    const transcriptStats = getTranscriptStatsFromJson(outputJson || {});
+    trackTranscriptionComplete(elapsedSec, true, transcriptStats);
 
     if (output && output.markdown) {
         mdContent = output.markdown;
@@ -528,8 +626,8 @@ function finishProcess(output) {
     }
 
     transcriptPreview.textContent = mdContent;
-    setupDownload(downloadMdBtn, mdContent, `${currentFileBaseName}_transcript.md`, 'text/markdown');
-    setupDownload(downloadJsonBtn, jsonContent, `${currentFileBaseName}_transcript.json`, 'application/json');
+    setupDownload(downloadMdBtn, mdContent, `${currentFileBaseName}_transcript.md`, 'text/markdown', { exportFormat: 'md', viewSource: 'fresh' });
+    setupDownload(downloadJsonBtn, jsonContent, `${currentFileBaseName}_transcript.json`, 'application/json', { exportFormat: 'json', viewSource: 'fresh' });
 
     const historyRecord = {
         id: `ts_${Date.now()}`,
@@ -538,12 +636,19 @@ function finishProcess(output) {
         timestamp: Date.now(),
         markdown: mdContent,
         json: output && output.json ? output.json : output,
+        inputSource: lastTranscriptionInputSource || lastSelectedSource || undefined,
+        audioDurationSec: lastTranscriptionAudioDurationSec || undefined,
         audioUrl: currentAudioUrl
     };
     saveHistory(historyRecord);
 
     inputArea.parentNode.classList.add('hidden');
     resultArea.classList.remove('hidden');
+    trackTranscriptView('fresh', {
+        input_source: lastTranscriptionInputSource || undefined,
+        segments_count: transcriptStats.segments_count,
+        speakers_count: transcriptStats.speakers_count
+    });
 
     checkAndDisplayQuota(); // Refresh quota after finished
 
@@ -557,6 +662,7 @@ function finishProcess(output) {
         copyTranscriptBtn.onclick = async () => {
             try {
                 await navigator.clipboard.writeText(mdContent);
+                trackCopyTranscript('fresh');
                 const originalHtml = copyTranscriptBtn.innerHTML;
                 copyTranscriptBtn.innerHTML = `
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -595,8 +701,11 @@ function finishProcess(output) {
     setControlsDisabled(false);
 }
 
-function setupDownload(btn, content, filename, type) {
+function setupDownload(btn, content, filename, type, meta = {}) {
     btn.onclick = () => {
+        if (meta && meta.exportFormat && meta.viewSource) {
+            trackExportTranscript(meta.exportFormat, meta.viewSource);
+        }
         const blob = new Blob([content], { type });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -868,9 +977,17 @@ function viewHistoryItem(id) {
 
     const mdContent = record.markdown;
     const jsonContent = JSON.stringify(record.json, null, 2);
+    const stats = getTranscriptStatsFromJson(record.json || {});
 
-    setupDownload(downloadMdBtn, mdContent, `${extractFileBaseName(record.fileName)}_transcript.md`, 'text/markdown');
-    setupDownload(downloadJsonBtn, jsonContent, `${extractFileBaseName(record.fileName)}_transcript.json`, 'application/json');
+    trackHistoryView(getAllHistory().length);
+    trackTranscriptView('history', {
+        input_source: record.inputSource || undefined,
+        segments_count: stats.segments_count,
+        speakers_count: stats.speakers_count
+    });
+
+    setupDownload(downloadMdBtn, mdContent, `${extractFileBaseName(record.fileName)}_transcript.md`, 'text/markdown', { exportFormat: 'md', viewSource: 'history' });
+    setupDownload(downloadJsonBtn, jsonContent, `${extractFileBaseName(record.fileName)}_transcript.json`, 'application/json', { exportFormat: 'json', viewSource: 'history' });
 
     resultMeta.textContent = `${record.fileName} (${formatBytes(record.fileSize || 0)})`;
 
@@ -878,6 +995,7 @@ function viewHistoryItem(id) {
         copyTranscriptBtn.onclick = async () => {
             try {
                 await navigator.clipboard.writeText(mdContent);
+                trackCopyTranscript('history');
                 const originalHtml = copyTranscriptBtn.innerHTML;
                 copyTranscriptBtn.innerHTML = `
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -972,7 +1090,7 @@ function initialize() {
     pickFileBtn.addEventListener('click', () => fileInput.click());
     fileInput.addEventListener('change', (e) => {
         const file = e.target.files && e.target.files[0];
-        updateSelectedFile(file || null);
+        updateSelectedFile(file || null, 'upload', { selectMethod: 'picker' });
     });
 
     inputArea.addEventListener('dragover', (e) => {
@@ -986,7 +1104,7 @@ function initialize() {
         e.preventDefault();
         inputArea.classList.remove('dragover');
         const file = e.dataTransfer.files && e.dataTransfer.files[0];
-        updateSelectedFile(file || null);
+        updateSelectedFile(file || null, 'upload', { selectMethod: 'drop' });
     });
 
     startBtn.addEventListener('click', async () => {
@@ -1010,6 +1128,7 @@ function initialize() {
     removeFileBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         fileInput.value = '';
+        if (selectedFile) trackSelectionClear(lastSelectedSource || 'upload');
         updateSelectedFile(null);
     });
 
@@ -1037,14 +1156,17 @@ function initialize() {
         if (modalContext === 'stop') {
             stopRecording();
         } else if (modalContext === 'remove') {
+            trackSelectionClear(lastSelectedSource || (recordPlaybackUrl ? 'record' : (selectedFile ? 'upload' : 'unknown')));
             updateSelectedFile(null);
         } else if (modalContext === 'delete-history') {
             const id = confirmModal.dataset.deleteId;
             if (id) {
+                trackHistoryDelete(getAllHistory().length);
                 deleteHistoryById(id);
                 renderHistoryList();
             }
         } else if (modalContext === 'clear-history') {
+            trackHistoryClear(getAllHistory().length);
             clearAllHistory();
             renderHistoryList();
         }

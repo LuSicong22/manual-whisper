@@ -3,7 +3,7 @@
  */
 import { formatTime, formatBytes, sleep, extractFileBaseName, getAudioDuration } from './utils.js';
 import { t, setAppLang, getCurrentLang, updateDOMTranslations } from './i18n.js';
-import { uploadFile, createTranscription, pollTranscriptionStatus, getQuota } from './apiService.js';
+import { uploadFile, createTranscription, pollTranscriptionStatus, getQuota, generateMeetingNotes } from './apiService.js';
 import { AudioRecorder } from './audioRecorder.js';
 import { saveHistory, getAllHistory, getHistoryById, deleteHistoryById, clearAllHistory } from './historyStore.js';
 import { dom } from './app/domRefs.js';
@@ -121,6 +121,9 @@ const {
     recordingSidebar,
     resultsSidebar,
     transcriptPreviewBox,
+    generateMeetingNotesBtn,
+    meetingNotesBox,
+    meetingNotesContent,
 } = dom;
 
 // --- Global State ---
@@ -596,6 +599,8 @@ function resetUI() {
     selectedFileName.textContent = t('no-file');
     currentFileBaseName = 'transcript';
     transcriptPreview.textContent = '';
+    if (meetingNotesContent) meetingNotesContent.textContent = '';
+    if (meetingNotesBox) meetingNotesBox.classList.add('hidden');
     recordStatus.textContent = '';
     cpPlayerUI.classList.add('hidden');
     recordPlayback.src = '';
@@ -607,7 +612,7 @@ function resetUI() {
 
     if (realtimePanel) {
         realtimePanel.classList.add('hidden');
-        const realtimeHeaderTitle = realtimePanel.querySelector('.realtime-panel-header span');
+        const realtimeHeaderTitle = realtimePanel.querySelector('#realtime-panel-title-result');
         if (realtimeHeaderTitle) {
             realtimeHeaderTitle.textContent = t('realtime-panel-title');
         }
@@ -832,6 +837,36 @@ function initialize() {
         resetUI();
     });
 
+    if (generateMeetingNotesBtn) {
+        generateMeetingNotesBtn.addEventListener('click', async () => {
+            const transcript = (transcriptPreview.textContent || '').trim();
+            if (!transcript) {
+                showError(t('error-select-file'));
+                return;
+            }
+
+            generateMeetingNotesBtn.disabled = true;
+            const originalText = generateMeetingNotesBtn.textContent;
+            generateMeetingNotesBtn.textContent = t('meeting-notes-generating');
+            errorMessage.classList.add('hidden');
+
+            try {
+                const data = await generateMeetingNotes({
+                    transcript,
+                    language: getCurrentLang()
+                });
+                if (meetingNotesContent) meetingNotesContent.textContent = data.notesMarkdown || '';
+                if (meetingNotesBox) meetingNotesBox.classList.remove('hidden');
+            } catch (err) {
+                console.error(err);
+                showError(err.message || 'Failed to generate meeting notes');
+            } finally {
+                generateMeetingNotesBtn.disabled = false;
+                generateMeetingNotesBtn.textContent = originalText;
+            }
+        });
+    }
+
     if (historyClearBtn) {
         historyClearBtn.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -902,7 +937,7 @@ function initialize() {
 
             if (realtimeToggleInput.checked && realtimeTranscriptionController.getIsActive()) {
                 // Update live panel header to show merging state
-                const realtimeHeaderTitle = realtimePanel.querySelector('.realtime-panel-header span');
+                const realtimeHeaderTitle = realtimePanel.querySelector('#realtime-panel-title-result');
                 if (realtimeHeaderTitle) {
                     realtimeHeaderTitle.textContent = t('realtime-merging');
                 }

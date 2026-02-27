@@ -130,12 +130,15 @@ body {
   justify-content: space-between;
   width: 100%;
   max-width: 1400px;
+  gap: 16px;
 }
 
 .nav-actions {
   display: flex;
   align-items: center;
   gap: 16px;
+  z-index: 1000;
+  flex-shrink: 0;
 }
 
 .nav-github-link {
@@ -177,12 +180,14 @@ body {
   align-items: center;
   gap: 8px;
   /* Reduced from 14px */
+  flex-shrink: 0;
 }
 
 .nav-logo {
   width: 48px;
   height: 48px;
   object-fit: contain;
+  flex-shrink: 0;
 }
 
 .logo-wrapper h1 {
@@ -191,7 +196,7 @@ body {
   font-weight: 600;
   letter-spacing: -0.01em;
   line-height: 1;
-  /* Ensure tight vertical alignment */
+  white-space: nowrap;
 }
 
 .text-gradient {
@@ -1007,7 +1012,7 @@ input:checked+.slider:before {
 
 .realtime-chunks-container {
   padding: 16px 20px;
-  max-height: calc(100vh - 220px);
+  flex: 1;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -1052,6 +1057,7 @@ input:checked+.slider:before {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 16px;
   font-size: 0.8rem;
   color: var(--text-muted);
 }
@@ -1061,6 +1067,8 @@ input:checked+.slider:before {
   align-items: center;
   gap: 6px;
   font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .chunk-status.success {
@@ -1377,7 +1385,9 @@ input:checked+.slider:before {
 .result-left-column {
   flex: 1;
   min-width: 0;
-  min-height: 300px;
+  height: calc(100vh - 120px);
+  display: flex;
+  flex-direction: column;
 }
 
 .result-right-sidebar {
@@ -1508,6 +1518,8 @@ input:checked+.slider:before {
 .wide-preview-inner {
   padding: 40px 60px;
   text-align: left;
+  flex: 1;
+  overflow-y: auto;
   min-height: 480px;
   display: flex;
   flex-direction: column;

@@ -127,7 +127,7 @@ function uploadViaVercel(file, onProgress) {
     });
 }
 
-export async function createTranscription({ fileUrl, sourceFilename, language, durationSec }) {
+export async function createTranscription({ fileUrl, sourceFilename, language, durationSec, chunkMode }) {
     const res = await fetch(`${API_BASE}/api/transcribe`, {
         method: 'POST',
         headers: {
@@ -138,7 +138,8 @@ export async function createTranscription({ fileUrl, sourceFilename, language, d
             fileUrl,
             sourceFilename,
             language: language || 'zh+en',
-            durationSec
+            durationSec,
+            chunkMode
         })
     });
 

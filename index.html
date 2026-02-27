@@ -133,12 +133,13 @@
                         </div>
                     </div>
 
+
                     <!-- 分割线 -->
                     <div class="split-divider">
                         <span class="divider-text" data-i18n="or">或</span>
                     </div>
 
-                    <!-- 录音区 -->
+                    <!-- 录音区 (initial trigger only) -->
                     <div id="record-section" class="input-section">
                         <div class="record-module">
                             <button id="record-btn" class="record-icon-btn" aria-label="录音">
@@ -210,6 +211,20 @@
                                     <div class="cp-progress-thumb" id="cp-thumb"></div>
                                 </div>
                             </div>
+
+                            <!-- Real-time Transcription Toggle -->
+                            <div class="realtime-toggle-wrapper">
+                                <div class="realtime-toggle-header">
+                                    <span class="realtime-toggle-title">⚡ <span
+                                            data-i18n="realtime-toggle-title">实时转写</span></span>
+                                    <label class="switch">
+                                        <input type="checkbox" id="realtime-toggle-input" checked>
+                                        <span class="slider round"></span>
+                                    </label>
+                                </div>
+                                <p class="realtime-toggle-desc" data-i18n="realtime-toggle-desc">录音时自动转写，无需等待</p>
+                            </div>
+
                         </div>
                     </div>
                 </div>
@@ -248,58 +263,68 @@
                         <button id="start-btn" class="btn primary glow-btn huge-start" disabled
                             data-i18n="btn-start">准备就绪，开始转写</button>
                     </div>
-
                 </div>
             </div>
-        </div>
 
-        <!-- 进度显示 (居中悬浮) -->
-        <div id="progress-area" class="hidden glass-panel progress-panel">
-            <div class="status-steps">
-                <div class="step" id="step-upload" data-i18n="step-upload">准备数据</div>
-                <div class="step" id="step-transcribe"><span data-i18n="step-transcribe">AI 转写中</span> (<span
-                        id="timer">0s</span>)</div>
-                <div class="step" id="step-process" data-i18n="step-process">后处理</div>
-            </div>
-            <div class="loader-wrapper">
-                <div class="modern-loader"></div>
-            </div>
-            <p id="status-text" class="status-text-highlight" data-i18n="status-ready">准备就绪...</p>
-            <div class="runtime-box glass-panel-inner">
-                <div id="upload-status-line" class="runtime-line" data-i18n="upload-status">状态：待开始</div>
-                <div class="meter">
-                    <div id="upload-progress-fill" class="meter-fill fill-cyan"></div>
+            <!-- 进度显示 (居中悬浮) -->
+            <div id="progress-area" class="hidden glass-panel progress-panel">
+                <div class="status-steps">
+                    <div class="step" id="step-upload" data-i18n="step-upload">准备数据</div>
+                    <div class="step" id="step-transcribe"><span data-i18n="step-transcribe">AI 转写中</span> (<span
+                            id="timer">0s</span>)</div>
+                    <div class="step" id="step-process" data-i18n="step-process">后处理</div>
                 </div>
-                <div id="transcribe-status-line" class="runtime-line" data-i18n="transcribe-status">转写状态：待开始</div>
-                <div class="meter">
-                    <div id="transcribe-progress-fill" class="meter-fill fill-purple"></div>
+                <div class="loader-wrapper">
+                    <div class="modern-loader"></div>
+                </div>
+                <p id="status-text" class="status-text-highlight" data-i18n="status-ready">准备就绪...</p>
+                <div class="runtime-box glass-panel-inner">
+                    <div id="upload-status-line" class="runtime-line" data-i18n="upload-status">状态：待开始</div>
+                    <div class="meter">
+                        <div id="upload-progress-fill" class="meter-fill fill-cyan"></div>
+                    </div>
+                    <div id="transcribe-status-line" class="runtime-line" data-i18n="transcribe-status">转写状态：待开始</div>
+                    <div class="meter">
+                        <div id="transcribe-progress-fill" class="meter-fill fill-purple"></div>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <!-- 历史记录面板 -->
-        <div id="history-panel" class="hero-panel history-panel hidden">
-            <div class="history-header">
-                <h3 data-i18n="history-title">历史记录</h3>
-                <button id="history-clear-btn" class="btn history-clear-btn hidden"
-                    data-i18n="history-clear">清空全部</button>
+            <!-- 历史记录面板 -->
+            <div id="history-panel" class="hero-panel history-panel hidden">
+                <div class="history-header">
+                    <h3 data-i18n="history-title">历史记录</h3>
+                    <button id="history-clear-btn" class="btn history-clear-btn hidden"
+                        data-i18n="history-clear">清空全部</button>
+                </div>
+                <div id="history-list" class="history-list">
+                    <!-- History Items go here -->
+                </div>
+                <div id="history-empty" class="history-empty" data-i18n="history-empty">
+                    暂无转写记录
+                </div>
             </div>
-            <div id="history-list" class="history-list">
-                <!-- History Items go here -->
-            </div>
-            <div id="history-empty" class="history-empty" data-i18n="history-empty">
-                暂无转写记录
-            </div>
-        </div>
 
     </main>
 
     <!-- 宏大的结果区域，铺满宽屏 -->
     <div id="result-area" class="hidden wide-result-area">
         <div class="split-result-container">
-            <!-- 左侧：转写文字 -->
+            <!-- 左侧：转写文字 / 实时转写面板 -->
             <div class="result-left-column">
-                <div class="preview-box glass-panel wide-preview-inner">
+                <!-- Live Transcript Panel during recording (swapped in/out via JS) -->
+                <div id="realtime-panel-result" class="realtime-panel hidden">
+                    <div class="realtime-panel-header">
+                        <span class="realtime-dot"></span>
+                        <span id="realtime-panel-title-result" data-i18n="realtime-panel-title">实时转写中...</span>
+                    </div>
+                    <div id="realtime-chunks-container-result" class="realtime-chunks-container">
+                        <!-- Chunks will be injected here -->
+                    </div>
+                </div>
+
+                <!-- Final transcript -->
+                <div class="preview-box glass-panel wide-preview-inner" id="transcript-preview-box">
                     <div id="transcript-preview"></div>
                 </div>
             </div>
@@ -307,60 +332,71 @@
             <!-- 右侧：固定操作栏 -->
             <aside class="result-right-sidebar">
                 <div class="result-sidebar-sticky">
-                    <div class="header-main">
-                        <h2 class="result-title" data-i18n="result-title">转写完成</h2>
-                        <div id="result-meta" class="result-meta"></div>
+
+                    <!-- Recording controls sidebar (filled dynamically by JS) -->
+                    <div id="recording-sidebar" class="hidden">
+                        <!-- record-module will be moved here dynamically -->
                     </div>
 
-                    <!-- Custom Result Playback Player -->
-                    <div id="result-playback-ui" class="custom-player hidden res-player">
-                        <audio id="result-playback"></audio>
-                        <div class="cp-top">
-                            <button class="cp-play-btn" id="res-play-btn" aria-label="播放">
-                                <svg id="res-icon-play" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"
-                                    stroke="none">
-                                    <polygon points="5,3 19,12 5,21" />
-                                </svg>
-                                <svg id="res-icon-pause" class="hidden" width="18" height="18" viewBox="0 0 24 24"
-                                    fill="currentColor" stroke="none">
-                                    <rect x="6" y="4" width="4" height="16" />
-                                    <rect x="14" y="4" width="4" height="16" />
-                                </svg>
-                            </button>
-                            <div class="cp-time">
-                                <span id="res-current">0:00</span>
-                                <span class="cp-sep">/</span>
-                                <span id="res-duration">0:00</span>
+                    <!-- Results sidebar (shown after transcription done) -->
+                    <div id="results-sidebar">
+                        <div class="header-main">
+                            <h2 class="result-title" data-i18n="result-title">转写完成</h2>
+                            <div id="result-meta" class="result-meta"></div>
+                        </div>
+
+                        <!-- Custom Result Playback Player -->
+                        <div id="result-playback-ui" class="custom-player hidden res-player">
+                            <audio id="result-playback"></audio>
+                            <div class="cp-top">
+                                <button class="cp-play-btn" id="res-play-btn" aria-label="播放">
+                                    <svg id="res-icon-play" width="18" height="18" viewBox="0 0 24 24"
+                                        fill="currentColor" stroke="none">
+                                        <polygon points="5,3 19,12 5,21" />
+                                    </svg>
+                                    <svg id="res-icon-pause" class="hidden" width="18" height="18" viewBox="0 0 24 24"
+                                        fill="currentColor" stroke="none">
+                                        <rect x="6" y="4" width="4" height="16" />
+                                        <rect x="14" y="4" width="4" height="16" />
+                                    </svg>
+                                </button>
+                                <div class="cp-time">
+                                    <span id="res-current">0:00</span>
+                                    <span class="cp-sep">/</span>
+                                    <span id="res-duration">0:00</span>
+                                </div>
+                                <button class="cp-speed-btn" id="res-speed-btn">1×</button>
+                                <button class="cp-download-btn" id="res-download-btn" aria-label="下载音频">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                        <polyline points="7 10 12 15 17 10" />
+                                        <line x1="12" x2="12" y1="15" y2="3" />
+                                    </svg>
+                                </button>
                             </div>
-                            <button class="cp-speed-btn" id="res-speed-btn">1×</button>
-                            <button class="cp-download-btn" id="res-download-btn" aria-label="下载音频">
+                            <div class="cp-progress-track" id="res-track">
+                                <div class="cp-progress-fill" id="res-fill"></div>
+                                <div class="cp-progress-thumb" id="res-thumb"></div>
+                            </div>
+                        </div>
+
+                        <div class="actions-stack">
+                            <button id="copy-transcript" class="btn secondary wide-btn" title="复制文字稿"
+                                data-i18n-title="btn-copy">
                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                                    <polyline points="7 10 12 15 17 10" />
-                                    <line x1="12" x2="12" y1="15" y2="3" />
+                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
                                 </svg>
+                                <span data-i18n="btn-copy">复制文字</span>
                             </button>
-                        </div>
-                        <div class="cp-progress-track" id="res-track">
-                            <div class="cp-progress-fill" id="res-fill"></div>
-                            <div class="cp-progress-thumb" id="res-thumb"></div>
+                            <button id="download-md" class="btn primary wide-btn" data-i18n="btn-md">下载
+                                Markdown</button>
+                            <button id="new-upload-btn" class="btn outline wide-btn" data-i18n="btn-new">开始新转写</button>
                         </div>
                     </div>
 
-                    <div class="actions-stack">
-                        <button id="copy-transcript" class="btn secondary wide-btn" title="复制文字稿"
-                            data-i18n-title="btn-copy">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                            </svg>
-                            <span data-i18n="btn-copy">复制文字</span>
-                        </button>
-                        <button id="download-md" class="btn primary wide-btn" data-i18n="btn-md">下载 Markdown</button>
-                        <button id="new-upload-btn" class="btn outline wide-btn" data-i18n="btn-new">开始新转写</button>
-                    </div>
                 </div>
             </aside>
         </div>

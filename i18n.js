@@ -92,7 +92,19 @@ export const appI18n = {
         'feedback-placeholder': '有什么想告诉我们的？（可选）',
         'feedback-submit': '提交反馈',
         'feedback-skip': '跳过',
-        'feedback-thanks': '感谢你的反馈！ 🙏'
+        'feedback-thanks': '感谢你的反馈！ 🙏',
+
+        // Real-time transcription 
+        'realtime-toggle-title': '实时转写',
+        'realtime-toggle-desc': '录音时自动转写，无需等待',
+        'realtime-panel-title': '实时转写中...',
+        'realtime-chunk-uploading': '上传中...',
+        'realtime-chunk-transcribing': '解析中...',
+        'realtime-chunk-merging': '合并 1/1 个片段... ',
+        'realtime-chunk-merging-n': '合并 {n} 个片段... ',
+        'realtime-chunk': '片段',
+        'realtime-merging': '正在合并实时转写结果...',
+        'realtime-waiting': '等待首个音频片段生成...',
     },
     en: {
         'app-title': 'FlashNotes',
@@ -183,7 +195,19 @@ export const appI18n = {
         'feedback-placeholder': 'Anything you want to share? (optional)',
         'feedback-submit': 'Submit',
         'feedback-skip': 'Skip',
-        'feedback-thanks': 'Thanks for your feedback! 🙏'
+        'feedback-thanks': 'Thanks for your feedback! 🙏',
+
+        // Real-time transcription
+        'realtime-toggle-title': 'Real-time Transcription',
+        'realtime-toggle-desc': 'Auto-transcribe while recording',
+        'realtime-panel-title': 'Real-time transcribing...',
+        'realtime-chunk-uploading': 'Uploading...',
+        'realtime-chunk-transcribing': 'Transcribing...',
+        'realtime-chunk-merging': 'Merging 1 segment... ',
+        'realtime-chunk-merging-n': 'Merging {n} segments... ',
+        'realtime-chunk': 'Segment',
+        'realtime-merging': 'Merging real-time results...',
+        'realtime-waiting': 'Waiting for the first audio segment...',
     }
 };
 

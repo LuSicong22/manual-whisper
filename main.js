@@ -12,6 +12,7 @@ import { createProgressController } from './app/flows/progressController.js';
 import { createHistoryController } from './app/flows/historyFlow.js';
 import { createRecordingController } from './app/flows/recordingFlow.js';
 import { createTranscriptionController } from './app/flows/transcriptionFlow.js';
+import { createRealtimeTranscriptionController } from './app/flows/realtimeTranscriptionFlow.js';
 import {
     getFileExt,
     getTranscriptStatsFromJson,
@@ -114,6 +115,12 @@ const {
     recordSvgStop,
     actionWrapper,
     historyPanel,
+    realtimeToggleInput,
+    realtimePanel,
+    realtimeChunksContainer,
+    recordingSidebar,
+    resultsSidebar,
+    transcriptPreviewBox,
 } = dom;
 
 // --- Global State ---
@@ -327,6 +334,54 @@ const transcriptionController = createTranscriptionController({
     }
 });
 
+const realtimeTranscriptionController = createRealtimeTranscriptionController({
+    recorder,
+    uploadFile,
+    createTranscription,
+    pollTranscriptionStatus,
+    renderRealtimeProgress: (status, chunks) => {
+        realtimeChunksContainer.innerHTML = '';
+        if (chunks.length === 0) return;
+
+        chunks.forEach(chunk => {
+            const el = document.createElement('div');
+            el.className = 'realtime-chunk';
+
+            const header = document.createElement('div');
+            header.className = 'chunk-header';
+
+            const title = document.createElement('span');
+            title.textContent = `${t('realtime-chunk')} ${chunk.index + 1} (${formatTime(chunk.startTime)} - ${formatTime(chunk.endTime)})`;
+
+            const st = document.createElement('div');
+            st.className = `chunk-status ${chunk.status === 'succeeded' ? 'success' : chunk.status === 'failed' ? 'error' : 'processing'}`;
+            if (chunk.status === 'succeeded') st.textContent = '✅ ' + t('status-done');
+            else if (chunk.status === 'failed') st.textContent = '❌ ' + t('status-error');
+            else if (chunk.status === 'waiting') st.textContent = '⏳ ' + t('transcribe-creating');
+            else st.textContent = '⏳ ' + t('status-processing');
+
+            header.appendChild(title);
+            header.appendChild(st);
+            el.appendChild(header);
+
+            if (chunk.status === 'waiting') {
+                const waitingTxt = document.createElement('div');
+                waitingTxt.className = 'chunk-text waiting-pulse';
+                waitingTxt.textContent = t('realtime-waiting');
+                el.appendChild(waitingTxt);
+            } else if (chunk.text || (chunk.output && chunk.output.markdown)) {
+                const txt = document.createElement('div');
+                txt.className = 'chunk-text';
+                txt.textContent = chunk.text || chunk.output.markdown;
+                el.appendChild(txt);
+            }
+            realtimeChunksContainer.appendChild(el);
+        });
+
+        realtimeChunksContainer.scrollTop = realtimeChunksContainer.scrollHeight;
+    }
+});
+
 // --- Functions ---
 
 function setupCustomPlayer(audio, playBtn, iconPlay, iconPause, currentTime, durationTime, speedBtn, track, fill, thumb, downloadBtn) {
@@ -445,7 +500,17 @@ function updateSelectedFile(file, source = 'upload', meta = {}) {
         if (recordInfoBar) recordInfoBar.classList.add('hidden');
         recordStatus.textContent = '';
         recordSection.classList.remove('dimmed', 'hidden');
-        uploadSection.classList.remove('dimmed', 'hidden');
+
+        // If real-time transcription is active, keep uploadSection hidden
+        if (realtimeTranscriptionController && realtimeTranscriptionController.getIsActive()) {
+            uploadSection.classList.add('hidden');
+        } else {
+            uploadSection.classList.remove('dimmed', 'hidden');
+        }
+
+        if (realtimePanel && !(realtimeTranscriptionController && realtimeTranscriptionController.getIsActive())) {
+            realtimePanel.classList.add('hidden');
+        }
         if (splitDivider) splitDivider.classList.remove('hidden');
 
         recordBtn.classList.remove('hidden');
@@ -540,9 +605,33 @@ function resetUI() {
     resultPlayback.src = '';
     currentAudioUrl = null;
 
+    if (realtimePanel) {
+        realtimePanel.classList.add('hidden');
+        const realtimeHeaderTitle = realtimePanel.querySelector('.realtime-panel-header span');
+        if (realtimeHeaderTitle) {
+            realtimeHeaderTitle.textContent = t('realtime-panel-title');
+        }
+    }
+    if (realtimeChunksContainer) realtimeChunksContainer.innerHTML = '';
+    if (recordingSidebar) {
+        recordingSidebar.classList.add('hidden');
+        // Move record-module back to its original location in record-section
+        const recordModule = recordingSidebar.querySelector('.record-module');
+        if (recordModule) {
+            recordModule.classList.remove('record-module-sidebar');
+            recordSection.appendChild(recordModule);
+        }
+    }
+    if (resultsSidebar) resultsSidebar.classList.remove('hidden');
+    if (transcriptPreviewBox) transcriptPreviewBox.classList.remove('hidden');
+
     // 还原上传区与录音区的完整初始可见状态
     uploadSection.classList.remove('dimmed', 'hidden');
     recordSection.classList.remove('dimmed', 'hidden');
+
+    // 还原 hero subtitle（录音实时模式下会隐藏）
+    const heroDesc = document.querySelector('.hero-desc');
+    if (heroDesc) heroDesc.classList.remove('hidden');
 
     const splitDivider = document.querySelector('.split-divider');
     if (splitDivider) splitDivider.classList.remove('hidden');
@@ -776,13 +865,72 @@ function initialize() {
             confirmModal.classList.remove('hidden');
         } else {
             recordingController.startRecording();
+
+            // Start realtime transcription if enabled
+            if (realtimeToggleInput.checked) {
+                realtimeTranscriptionController.setIsActive(true);
+
+                // Move the existing record-module into the result-area sidebar (no duplicate IDs)
+                const recordModule = recordSection.querySelector('.record-module');
+                if (recordModule && recordingSidebar) {
+                    recordModule.classList.add('record-module-sidebar');
+                    recordingSidebar.appendChild(recordModule);
+                }
+
+                // Switch to result-area layout (left=live transcript, right=recording controls)
+                inputArea.parentNode.classList.add('hidden');
+                resultArea.classList.remove('hidden');
+                if (transcriptPreviewBox) transcriptPreviewBox.classList.add('hidden');
+                realtimePanel.classList.remove('hidden');
+                if (recordingSidebar) recordingSidebar.classList.remove('hidden');
+                if (resultsSidebar) resultsSidebar.classList.add('hidden');
+                if (historyPanel) historyPanel.classList.add('hidden');
+                if (dom.quotaDisplay) dom.quotaDisplay.classList.add('hidden');
+
+                realtimeTranscriptionController.start(currentTranscriptionLanguage);
+            } else {
+                realtimeTranscriptionController.setIsActive(false);
+                realtimePanel.classList.add('hidden');
+            }
         }
     });
 
-    confirmOkBtn.addEventListener('click', () => {
+    confirmOkBtn.addEventListener('click', async () => {
         confirmModal.classList.add('hidden');
         if (modalContext === 'stop') {
             recordingController.stopRecording();
+
+            if (realtimeToggleInput.checked && realtimeTranscriptionController.getIsActive()) {
+                // Update live panel header to show merging state
+                const realtimeHeaderTitle = realtimePanel.querySelector('.realtime-panel-header span');
+                if (realtimeHeaderTitle) {
+                    realtimeHeaderTitle.textContent = t('realtime-merging');
+                }
+
+                // Hide the recording sidebar and move record-module back
+                if (recordingSidebar) {
+                    const recordModule = recordingSidebar.querySelector('.record-module');
+                    if (recordModule) {
+                        recordModule.classList.remove('record-module-sidebar');
+                        recordSection.appendChild(recordModule);
+                    }
+                    recordingSidebar.classList.add('hidden');
+                }
+
+                try {
+                    const finalOutput = await realtimeTranscriptionController.stop(currentTranscriptionLanguage);
+                    // finishProcess will: hide inputArea.parentNode, show resultArea, populate transcript
+                    // We're already in resultArea, so we just need to swap left/right content
+                    if (transcriptPreviewBox) transcriptPreviewBox.classList.remove('hidden');
+                    realtimePanel.classList.add('hidden');
+                    if (resultsSidebar) resultsSidebar.classList.remove('hidden');
+                    if (dom.quotaDisplay) dom.quotaDisplay.classList.remove('hidden');
+                    transcriptionController.finishProcess(finalOutput);
+                } catch (err) {
+                    showError(err.message || 'Error processing realtime chunks');
+                    resetUI();
+                }
+            }
         } else if (modalContext === 'remove') {
             trackSelectionClear(lastSelectedSource || (recordPlaybackUrl ? 'record' : (selectedFile ? 'upload' : 'unknown')));
             updateSelectedFile(null);

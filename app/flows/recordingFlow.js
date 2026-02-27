@@ -30,6 +30,12 @@ export function createRecordingController({
             updateSelectedFile(null);
             ui.uploadSection.classList.add('dimmed');
 
+            const realtimeToggle = document.getElementById('realtime-toggle-input');
+            const splitDivider = document.querySelector('.split-divider');
+            if (realtimeToggle && realtimeToggle.checked && splitDivider) {
+                splitDivider.classList.add('hidden');
+            }
+
             ui.cpPlayerUI.classList.add('hidden');
             ui.recordPlayback.src = '';
             ui.recordSvgMic.classList.add('hidden');
@@ -100,6 +106,12 @@ export function createRecordingController({
 
         if (!getSelectedFile()) {
             ui.uploadSection.classList.remove('dimmed');
+            ui.uploadSection.classList.remove('hidden');
+        }
+
+        const splitDivider = document.querySelector('.split-divider');
+        if (splitDivider) {
+            splitDivider.classList.remove('hidden');
         }
 
         recorder.cleanup();

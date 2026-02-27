@@ -85,4 +85,12 @@ export const dom = {
     recordSvgStop: document.getElementById('record-svg-stop'),
     actionWrapper: document.getElementById('action-wrapper'),
     historyPanel: document.getElementById('history-panel'),
+
+    // Real-time Transcription Elements
+    realtimeToggleInput: document.getElementById('realtime-toggle-input'),
+    realtimePanel: document.getElementById('realtime-panel-result'),
+    realtimeChunksContainer: document.getElementById('realtime-chunks-container-result'),
+    recordingSidebar: document.getElementById('recording-sidebar'),
+    resultsSidebar: document.getElementById('results-sidebar'),
+    transcriptPreviewBox: document.getElementById('transcript-preview-box'),
 };

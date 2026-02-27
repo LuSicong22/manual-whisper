@@ -11,6 +11,7 @@ export class AudioRecorder {
         this.recordingStream = null;
         this.audioBuffers = [];
         this.recordingLength = 0;
+        this.lastExtractionLength = 0;
         this.isRecording = false;
         this.onVolumeChange = null;
     }
@@ -34,6 +35,7 @@ export class AudioRecorder {
 
         this.audioBuffers = [];
         this.recordingLength = 0;
+        this.lastExtractionLength = 0;
 
         this.scriptProcessor.onaudioprocess = (e) => {
             if (!this.isRecording) return;
@@ -80,8 +82,8 @@ export class AudioRecorder {
         if (this.audioContext && this.audioContext.state !== 'closed') {
             this.audioContext.close();
         }
-        this.audioBuffers = [];
         this.recordingLength = 0;
+        this.lastExtractionLength = 0;
         this.audioContext = null;
         this.scriptProcessor = null;
         this.mediaStreamSource = null;
@@ -131,5 +133,27 @@ export class AudioRecorder {
         for (let i = 0; i < string.length; i++) {
             view.setUint8(offset + i, string.charCodeAt(i));
         }
+    }
+
+    extractChunk() {
+        if (!this.isRecording || this.recordingLength === this.lastExtractionLength) {
+            return null;
+        }
+
+        const fullAudioData = this.mergeAudioBuffers(this.audioBuffers, this.recordingLength);
+        const deltaSamples = this.recordingLength - this.lastExtractionLength;
+        const deltaAudioData = fullAudioData.slice(this.lastExtractionLength);
+
+        const wavBlob = this.encodeWAV(deltaAudioData, this.audioContext.sampleRate);
+        const startTimeSec = this.lastExtractionLength / this.audioContext.sampleRate;
+        const durationSec = deltaSamples / this.audioContext.sampleRate;
+
+        this.lastExtractionLength = this.recordingLength;
+
+        return {
+            blob: wavBlob,
+            startTimeSec,
+            durationSec
+        };
     }
 }

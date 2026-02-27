@@ -16,7 +16,7 @@ import { handlePreflight, setCorsHeaders } from "./_cors.js";
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const POST_RATE_LIMIT_PER_MIN = Number(getEnv("POST_RATE_LIMIT_PER_MIN") || 6);
 const GET_RATE_LIMIT_PER_MIN = Number(getEnv("GET_RATE_LIMIT_PER_MIN") || 60);
-const MAX_ACTIVE_JOBS_PER_IP = Number(getEnv("MAX_ACTIVE_JOBS_PER_IP") || 2);
+const MAX_ACTIVE_JOBS_PER_IP = Number(getEnv("MAX_ACTIVE_JOBS_PER_IP") || 5);
 const META_TTL_MS = 24 * 60 * 60 * 1000;
 
 const MAX_WEEKLY_DURATION_SEC = 2 * 60 * 60; // 2 hours
@@ -140,7 +140,7 @@ async function handlePost(clientIp, body, response) {
     }
 
     try {
-        const { fileUrl, sourceFilename, language: reqLanguage, durationSec } = body || {};
+        const { fileUrl, sourceFilename, language: reqLanguage, durationSec, chunkMode } = body || {};
         const language = LANGUAGE_OVERRIDE || (typeof reqLanguage === "string" && VALID_LANGUAGES.has(reqLanguage) ? reqLanguage : "zh");
 
         // Ensure duration is provided and valid. Allow 1-5 second leeway for rounding.
@@ -160,9 +160,11 @@ async function handlePost(clientIp, body, response) {
             return response.status(429).json({ error: `Weekly duration quota exceeded. Limit is ${MAX_WEEKLY_DURATION_SEC / 60 / 60} hours/week.` });
         }
 
-        // Optimistically add duration
-        usage.totalDurationSec += duration;
-        globalState.weeklyUsage.set(clientIp, usage);
+        // Optimistically add duration, but skip for individual chunks to avoid double-counting
+        if (!chunkMode) {
+            usage.totalDurationSec += duration;
+            globalState.weeklyUsage.set(clientIp, usage);
+        }
 
         if (!fileUrl) return response.status(400).json({ error: "Missing fileUrl" });
 

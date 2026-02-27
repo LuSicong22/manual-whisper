@@ -203,7 +203,8 @@ export function createTranscriptionController(deps) {
 
     function finishProcess(output) {
         stopTimer();
-        const elapsedSec = Math.round((Date.now() - getStartTime()) / 1000);
+        const start = getStartTime();
+        const elapsedSec = start ? Math.round((Date.now() - start) / 1000) : 0;
         updateStatus('process', t('status-done'));
         setTranscribeProgress(100, `${t('transcribe-status').split(t('colon'))[0]}${t('colon')}${t('transcribe-finished')} (100%)`);
 
@@ -235,8 +236,11 @@ export function createTranscriptionController(deps) {
         };
         saveHistory(historyRecord);
 
-        ui.inputArea.parentNode.classList.add('hidden');
-        ui.resultArea.classList.remove('hidden');
+        // Only swap areas if result-area isn't already shown (e.g., non-realtime recording path)
+        if (ui.resultArea.classList.contains('hidden')) {
+            ui.inputArea.parentNode.classList.add('hidden');
+            ui.resultArea.classList.remove('hidden');
+        }
         trackTranscriptView('fresh', {
             input_source: getLastTranscriptionInputSource() || undefined,
             segments_count: transcriptStats.segments_count,
@@ -276,7 +280,7 @@ export function createTranscriptionController(deps) {
 
         // Show feedback modal on first transcription
         if (!localStorage.getItem('feedback_shown')) {
-            setTimeout(() => showFeedbackModal(t), 1200);
+            setTimeout(() => showFeedbackModal(t), 10000);
         }
     }
 
@@ -347,5 +351,6 @@ export function createTranscriptionController(deps) {
 
     return {
         startTranscriptionTask,
+        finishProcess,
     };
 }

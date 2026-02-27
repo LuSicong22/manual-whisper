@@ -92,5 +92,5 @@ export const dom = {
     realtimeChunksContainer: document.getElementById('realtime-chunks-container-result'),
     recordingSidebar: document.getElementById('recording-sidebar'),
     resultsSidebar: document.getElementById('results-sidebar'),
-    transcriptPreviewBox: document.getElementById('transcript-preview-box'),
+    transcriptPreviewBox: document.getElementById('transcript-preview-box')
 };

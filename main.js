@@ -121,6 +121,15 @@ const {
     recordingSidebar,
     resultsSidebar,
     transcriptPreviewBox,
+    resultTabs,
+    tabTranscript,
+    tabMinutes,
+    tabMinutesStatus,
+    minutesPreviewBox,
+    minutesLoading,
+    minutesErrorView,
+    retryMinutesBtn,
+    minutesPreview,
 } = dom;
 
 // --- Global State ---

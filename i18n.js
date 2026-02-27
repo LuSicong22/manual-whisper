@@ -105,6 +105,13 @@ export const appI18n = {
         'realtime-chunk': '片段',
         'realtime-merging': '正在合并实时转写结果...',
         'realtime-waiting': '等待首个音频片段生成...',
+
+        // AI Meeting Minutes
+        'tab-transcript': '转写原文',
+        'tab-minutes': '会议纪要',
+        'minutes-generating': '正在生成会议纪要...',
+        'minutes-error': '生成失败，请重试',
+        'btn-retry': '重试',
     },
     en: {
         'app-title': 'FlashNotes',
@@ -208,6 +215,13 @@ export const appI18n = {
         'realtime-chunk': 'Segment',
         'realtime-merging': 'Merging real-time results...',
         'realtime-waiting': 'Waiting for the first audio segment...',
+
+        // AI Meeting Minutes
+        'tab-transcript': 'Transcript',
+        'tab-minutes': 'AI Minutes',
+        'minutes-generating': 'Generating meeting minutes...',
+        'minutes-error': 'Failed to generate, please retry',
+        'btn-retry': 'Retry',
     }
 };
 

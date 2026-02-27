@@ -92,5 +92,16 @@ export const dom = {
     realtimeChunksContainer: document.getElementById('realtime-chunks-container-result'),
     recordingSidebar: document.getElementById('recording-sidebar'),
     resultsSidebar: document.getElementById('results-sidebar'),
-    transcriptPreviewBox: document.getElementById('transcript-preview-box')
+    transcriptPreviewBox: document.getElementById('transcript-preview-box'),
+
+    // AI Meeting Minutes Elements
+    resultTabs: document.getElementById('result-tabs'),
+    tabTranscript: document.getElementById('tab-transcript'),
+    tabMinutes: document.getElementById('tab-minutes'),
+    tabMinutesStatus: document.getElementById('tab-minutes-status'),
+    minutesPreviewBox: document.getElementById('minutes-preview-box'),
+    minutesLoading: document.getElementById('minutes-loading'),
+    minutesErrorView: document.getElementById('minutes-error-view'),
+    retryMinutesBtn: document.getElementById('retry-minutes-btn'),
+    minutesPreview: document.getElementById('minutes-preview'),
 };

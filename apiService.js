@@ -191,6 +191,23 @@ export async function getQuota() {
     return await res.json();
 }
 
+export async function generateMeetingSummary(transcript) {
+    const res = await fetch(`${API_BASE}/api/summarize`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'x-app-key': APP_SHARED_KEY
+        },
+        body: JSON.stringify({ transcript })
+    });
+
+    if (!res.ok) {
+        const err = await safeJson(res);
+        throw new Error(`[${res.status}] ${err.error || 'Failed to generate summary'}`);
+    }
+
+    return await res.json();
+}
 
 
 function safeParseXhrJson(xhr) {

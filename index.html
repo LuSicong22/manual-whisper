@@ -323,9 +323,31 @@
                     </div>
                 </div>
 
+                <!-- Result Tabs (hidden during realtime) -->
+                <div id="result-tabs" class="result-tabs hidden">
+                    <button class="result-tab-btn active" id="tab-transcript" data-i18n="tab-transcript">转写原文</button>
+                    <button class="result-tab-btn" id="tab-minutes">
+                        <span data-i18n="tab-minutes">会议纪要</span>
+                        <span id="tab-minutes-status"></span>
+                    </button>
+                </div>
+
                 <!-- Final transcript -->
                 <div class="preview-box glass-panel wide-preview-inner" id="transcript-preview-box">
                     <div id="transcript-preview"></div>
+                </div>
+
+                <!-- Meeting Minutes -->
+                <div class="preview-box glass-panel wide-preview-inner hidden" id="minutes-preview-box">
+                    <div id="minutes-loading" class="minutes-loading-container hidden">
+                        <div class="modern-loader"></div>
+                        <p data-i18n="minutes-generating">正在生成会议纪要...</p>
+                    </div>
+                    <div id="minutes-error-view" class="minutes-error-container hidden">
+                        <p id="minutes-error-text" data-i18n="minutes-error">生成失败，请重试</p>
+                        <button id="retry-minutes-btn" class="btn outline" data-i18n="btn-retry">重试</button>
+                    </div>
+                    <div id="minutes-preview"></div>
                 </div>
             </div>
 

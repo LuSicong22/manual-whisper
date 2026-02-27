@@ -196,6 +196,19 @@ async function run() {
         addStep(result, 'open_page');
         await page.goto(targetUrl, { waitUntil: 'domcontentloaded' });
 
+        // Ensure Real-time toggle is off for the classic flow test
+        try {
+            await page.evaluate(() => {
+                const toggle = document.getElementById('realtime-toggle-input');
+                if (toggle && toggle.checked) {
+                    toggle.click();
+                }
+            });
+            await page.waitForTimeout(500);
+        } catch (e) {
+            // ignore
+        }
+
         addStep(result, 'record_start');
         await page.click('#record-btn');
 

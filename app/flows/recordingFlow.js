@@ -30,9 +30,8 @@ export function createRecordingController({
             updateSelectedFile(null);
             ui.uploadSection.classList.add('dimmed');
 
-            const realtimeToggle = document.getElementById('realtime-toggle-input');
             const splitDivider = document.querySelector('.split-divider');
-            if (realtimeToggle && realtimeToggle.checked && splitDivider) {
+            if (splitDivider) {
                 splitDivider.classList.add('hidden');
             }
 

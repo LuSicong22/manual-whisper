@@ -196,19 +196,6 @@ async function run() {
         addStep(result, 'open_page');
         await page.goto(targetUrl, { waitUntil: 'domcontentloaded' });
 
-        // Ensure Real-time toggle is off for the classic flow test
-        try {
-            await page.evaluate(() => {
-                const toggle = document.getElementById('realtime-toggle-input');
-                if (toggle && toggle.checked) {
-                    toggle.click();
-                }
-            });
-            await page.waitForTimeout(500);
-        } catch (e) {
-            // ignore
-        }
-
         addStep(result, 'record_start');
         await page.click('#record-btn');
 
@@ -225,15 +212,6 @@ async function run() {
         } else {
             addStep(result, 'record_stop_confirm_skipped', 'modal not shown; continue with direct-stop path');
         }
-
-        addStep(result, 'wait_start_enabled');
-        await page.waitForFunction(() => {
-            const btn = document.getElementById('start-btn');
-            return !!btn && !btn.disabled;
-        }, undefined, { timeout: 20000 });
-
-        addStep(result, 'transcribe_start');
-        await page.click('#start-btn');
 
         addStep(result, 'wait_result');
         const outcome = await waitForResult(page, timeoutMs);

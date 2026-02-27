@@ -87,7 +87,6 @@ export const dom = {
     historyPanel: document.getElementById('history-panel'),
 
     // Real-time Transcription Elements
-    realtimeToggleInput: document.getElementById('realtime-toggle-input'),
     realtimePanel: document.getElementById('realtime-panel-result'),
     realtimeChunksContainer: document.getElementById('realtime-chunks-container-result'),
     recordingSidebar: document.getElementById('recording-sidebar'),

@@ -3,7 +3,7 @@
  */
 import { formatTime, formatBytes, sleep, extractFileBaseName, getAudioDuration } from './utils.js';
 import { t, setAppLang, getCurrentLang, updateDOMTranslations } from './i18n.js';
-import { uploadFile, createTranscription, pollTranscriptionStatus, getQuota } from './apiService.js';
+import { uploadFile, createTranscription, pollTranscriptionStatus, getQuota, generateMeetingSummary } from './apiService.js';
 import { AudioRecorder } from './audioRecorder.js';
 import { saveHistory, getAllHistory, getHistoryById, deleteHistoryById, clearAllHistory } from './historyStore.js';
 import { dom } from './app/domRefs.js';
@@ -115,7 +115,6 @@ const {
     recordSvgStop,
     actionWrapper,
     historyPanel,
-    realtimeToggleInput,
     realtimePanel,
     realtimeChunksContainer,
     recordingSidebar,
@@ -267,6 +266,7 @@ const transcriptionController = createTranscriptionController({
     uploadFile,
     createTranscription,
     pollTranscriptionStatus,
+    generateMeetingSummary,
     getAllHistory,
     getFileExt,
     getTranscriptStatsFromJson,
@@ -340,6 +340,18 @@ const transcriptionController = createTranscriptionController({
         resIconPlay,
         resIconPause,
         resSpeedBtn,
+
+        // Meeting Minutes UI
+        resultTabs,
+        tabTranscript,
+        tabMinutes,
+        tabMinutesStatus,
+        minutesPreviewBox,
+        minutesLoading,
+        minutesErrorView,
+        retryMinutesBtn,
+        minutesPreview,
+        transcriptPreviewBox,
     }
 });
 
@@ -876,32 +888,27 @@ function initialize() {
         } else {
             recordingController.startRecording();
 
-            // Start realtime transcription if enabled
-            if (realtimeToggleInput.checked) {
-                realtimeTranscriptionController.setIsActive(true);
+            // Start realtime transcription (Always enabled)
+            realtimeTranscriptionController.setIsActive(true);
 
-                // Move the existing record-module into the result-area sidebar (no duplicate IDs)
-                const recordModule = recordSection.querySelector('.record-module');
-                if (recordModule && recordingSidebar) {
-                    recordModule.classList.add('record-module-sidebar');
-                    recordingSidebar.appendChild(recordModule);
-                }
-
-                // Switch to result-area layout (left=live transcript, right=recording controls)
-                inputArea.parentNode.classList.add('hidden');
-                resultArea.classList.remove('hidden');
-                if (transcriptPreviewBox) transcriptPreviewBox.classList.add('hidden');
-                realtimePanel.classList.remove('hidden');
-                if (recordingSidebar) recordingSidebar.classList.remove('hidden');
-                if (resultsSidebar) resultsSidebar.classList.add('hidden');
-                if (historyPanel) historyPanel.classList.add('hidden');
-                if (dom.quotaDisplay) dom.quotaDisplay.classList.add('hidden');
-
-                realtimeTranscriptionController.start(currentTranscriptionLanguage);
-            } else {
-                realtimeTranscriptionController.setIsActive(false);
-                realtimePanel.classList.add('hidden');
+            // Move the existing record-module into the result-area sidebar (no duplicate IDs)
+            const recordModule = recordSection.querySelector('.record-module');
+            if (recordModule && recordingSidebar) {
+                recordModule.classList.add('record-module-sidebar');
+                recordingSidebar.appendChild(recordModule);
             }
+
+            // Switch to result-area layout (left=live transcript, right=recording controls)
+            inputArea.parentNode.classList.add('hidden');
+            resultArea.classList.remove('hidden');
+            if (transcriptPreviewBox) transcriptPreviewBox.classList.add('hidden');
+            realtimePanel.classList.remove('hidden');
+            if (recordingSidebar) recordingSidebar.classList.remove('hidden');
+            if (resultsSidebar) resultsSidebar.classList.add('hidden');
+            if (historyPanel) historyPanel.classList.add('hidden');
+            if (dom.quotaDisplay) dom.quotaDisplay.classList.add('hidden');
+
+            realtimeTranscriptionController.start(currentTranscriptionLanguage);
         }
     });
 
@@ -910,7 +917,7 @@ function initialize() {
         if (modalContext === 'stop') {
             recordingController.stopRecording();
 
-            if (realtimeToggleInput.checked && realtimeTranscriptionController.getIsActive()) {
+            if (realtimeTranscriptionController.getIsActive()) {
                 // Update live panel header to show merging state
                 const realtimeHeaderTitle = realtimePanel.querySelector('#realtime-panel-title-result');
                 if (realtimeHeaderTitle) {

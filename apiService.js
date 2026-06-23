@@ -144,7 +144,8 @@ export async function createTranscription({ fileUrl, sourceFilename, language, d
 
     if (!res.ok) {
         const err = await safeJson(res);
-        throw new Error(`[${res.status}] ${err.error || 'Prediction failed to start'}`);
+        const detail = err.detail ? ` — ${err.detail}` : '';
+        throw new Error(`[${res.status}] ${err.error || 'Prediction failed to start'}${detail}`);
     }
 
     return await res.json();

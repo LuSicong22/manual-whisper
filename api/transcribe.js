@@ -184,7 +184,7 @@ async function handlePost(clientIp, body, response) {
         });
     } catch (e) {
         console.error("Prediction Error:", e);
-        return response.status(500).json({ error: "Failed to start transcription" });
+        return response.status(500).json({ error: "Failed to start transcription", detail: e?.message || String(e) });
     }
 }
 

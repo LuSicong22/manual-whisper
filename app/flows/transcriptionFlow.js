@@ -94,7 +94,17 @@ export function createTranscriptionController(deps) {
         const hasHistory = getAllHistory().length > 0 ? '1' : '0';
 
         const adminSecret = new URLSearchParams(window.location.search).get('admin');
-        const durationSec = await getAudioDuration(file);
+        let durationSec = await getAudioDuration(file);
+        if ((!Number.isFinite(durationSec) || durationSec <= 0) && Number(file.recordDurationSec) > 0) {
+            durationSec = file.recordDurationSec;
+        }
+        if (!Number.isFinite(durationSec) || durationSec <= 0) {
+            trackTranscriptionBlocked('invalid_duration', { input_source: inputSource });
+            setRunning(false);
+            setControlsDisabled(false);
+            showError(t('error-file-empty'));
+            return;
+        }
         setLastTranscriptionAudioDurationSec(Math.round(Number(durationSec) || 0));
         setLastTranscriptionAudioDurationBucket(bucketizeSeconds(durationSec));
 

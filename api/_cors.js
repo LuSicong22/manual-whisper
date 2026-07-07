@@ -29,8 +29,9 @@ export function setCorsHeaders(request, response) {
     if (isAllowedOrigin(origin)) {
         response.setHeader("Access-Control-Allow-Origin", origin);
     }
-    response.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    response.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-app-key, x-file-name, x-file-content-type");
+    response.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS");
+    response.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-app-key, x-file-name, x-file-content-type, x-api-version");
+    response.setHeader("Access-Control-Max-Age", "86400");
 }
 
 /** Returns true if the request was a preflight that has been handled. */

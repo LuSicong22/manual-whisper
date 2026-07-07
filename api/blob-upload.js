@@ -53,6 +53,13 @@ export default async function handler(request, response) {
         return response.status(200).json(jsonResponse);
     } catch (error) {
         console.error('Blob upload handler error:', error);
-        return response.status(400).json({ error: error.message });
+        const message = error?.message || '';
+        let status = 400;
+
+        if (message.includes('quota') || message.includes('storage')) {
+            status = 507;
+        }
+
+        return response.status(status).json({ error: message });
     }
 }

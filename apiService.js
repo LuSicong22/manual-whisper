@@ -8,14 +8,28 @@ import { API_BASE, APP_SHARED_KEY } from './clientConfig.js';
 const POLL_TIMEOUT_MS = 30 * 60 * 1000;
 const INITIAL_POLL_INTERVAL_MS = 3000;
 const MAX_POLL_INTERVAL_MS = 10000;
+const DIRECT_UPLOAD_MAX_BYTES = 4 * 1024 * 1024;
 
 export async function uploadFile(file, onProgress) {
     // On .web.app domains, upload directly to Vercel Blob to bypass Vercel's 4.5MB body limit.
     // On local dev (vercel dev), use the Vercel proxy which has no such limit.
-    if (API_BASE) {
-        return uploadViaVercelBlob(file, onProgress);
+    if (!API_BASE) {
+        return uploadViaVercel(file, onProgress);
     }
-    return uploadViaVercel(file, onProgress);
+
+    if (file.size <= DIRECT_UPLOAD_MAX_BYTES) {
+        return uploadViaVercel(file, onProgress);
+    }
+
+    try {
+        return await uploadViaVercelBlob(file, onProgress);
+    } catch (error) {
+        if (file.size <= DIRECT_UPLOAD_MAX_BYTES) {
+            throw error;
+        }
+        console.warn('Blob upload failed, retrying via API upload:', error);
+        return uploadViaVercel(file, onProgress);
+    }
 }
 
 async function uploadViaVercelBlob(file, onProgress) {
@@ -30,7 +44,11 @@ async function uploadViaVercelBlob(file, onProgress) {
     });
     if (!tokenRes.ok) {
         const err = await safeJson(tokenRes);
-        throw new Error(`[${tokenRes.status}] ${err.error || t('error-api-token')}`);
+        const errMsg = formatApiError(err.error) || t('error-api-token');
+        if (errMsg && (errMsg.includes('quota') || errMsg.includes('storage'))) {
+            throw new Error('服务器存储空间已满，请稍后重试');
+        }
+        throw new Error(`[${tokenRes.status}] ${errMsg}`);
     }
     const { clientToken } = await tokenRes.json();
     if (!clientToken) throw new Error(t('error-api-token'));
@@ -58,7 +76,10 @@ async function uploadViaVercelBlob(file, onProgress) {
         xhr.onload = () => {
             if (xhr.status < 200 || xhr.status >= 300) {
                 let detail = t('error-op-failed');
-                try { detail = JSON.parse(xhr.responseText)?.error || detail; } catch { /* ignore */ }
+                try {
+                    const payload = JSON.parse(xhr.responseText);
+                    detail = formatApiError(payload?.error) || detail;
+                } catch { /* ignore */ }
                 reject(new Error(`[${xhr.status}] ${detail}`));
                 return;
             }
@@ -80,9 +101,10 @@ async function uploadViaVercelBlob(file, onProgress) {
 }
 
 function uploadViaVercel(file, onProgress) {
+    const uploadUrl = API_BASE ? `${API_BASE}/api/upload` : '/api/upload';
     return new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
-        xhr.open('POST', `/api/upload`);
+        xhr.open('POST', uploadUrl);
         xhr.responseType = 'json';
         xhr.setRequestHeader('x-file-name', encodeURIComponent(file.name));
         xhr.setRequestHeader('x-file-content-type', file.type || 'application/octet-stream');
@@ -145,7 +167,7 @@ export async function createTranscription({ fileUrl, sourceFilename, language, d
     if (!res.ok) {
         const err = await safeJson(res);
         const detail = err.detail ? ` — ${err.detail}` : '';
-        throw new Error(`[${res.status}] ${err.error || 'Prediction failed to start'}${detail}`);
+        throw new Error(`[${res.status}] ${formatApiError(err.error) || 'Prediction failed to start'}${detail}`);
     }
 
     return await res.json();
@@ -166,7 +188,7 @@ export async function pollTranscriptionStatus(predictionId, onUpdate) {
 
         if (!res.ok) {
             const err = await safeJson(res);
-            throw new Error(`[${res.status}] ${err.error || 'Failed to fetch prediction status'}`);
+            throw new Error(`[${res.status}] ${formatApiError(err.error) || 'Failed to fetch prediction status'}`);
         }
 
         const data = await res.json();
@@ -206,4 +228,17 @@ async function safeJson(res) {
     } catch {
         return {};
     }
+}
+
+function formatApiError(error) {
+    if (typeof error === 'string' && error.trim()) return error.trim();
+    if (error && typeof error === 'object') {
+        if (typeof error.message === 'string' && error.message.trim()) return error.message.trim();
+        try {
+            return JSON.stringify(error);
+        } catch {
+            return String(error);
+        }
+    }
+    return '';
 }

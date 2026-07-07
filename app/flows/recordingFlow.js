@@ -63,6 +63,7 @@ export function createRecordingController({
         const ts = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}`;
         const fileName = `${t('recording-name-prefix')}${ts}.wav`;
         const file = new File([wavBlob], fileName, { type: 'audio/wav' });
+        file.recordDurationSec = recordDurationSec;
 
         trackRecordStop(recordDurationSec, Math.round(file.size / 1024 / 1024 * 10) / 10);
         recordStartTime = null;

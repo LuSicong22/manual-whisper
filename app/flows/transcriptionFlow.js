@@ -284,9 +284,9 @@ export function createTranscriptionController(deps) {
         setRunning(false);
         setControlsDisabled(false);
 
-        // Show feedback modal on first transcription
+        // Show feedback modal on first transcription, after giving the user time to view the result
         if (!localStorage.getItem('feedback_shown')) {
-            setTimeout(() => showFeedbackModal(t), 1200);
+            setTimeout(() => showFeedbackModal(t), 10000);
         }
     }
 
